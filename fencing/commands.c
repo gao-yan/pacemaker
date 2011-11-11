@@ -368,6 +368,8 @@ static stonith_device_t *build_device_from_xml(xmlNode *msg)
     device->agent = crm_element_value_copy(dev, "agent");
     device->namespace = crm_element_value_copy(dev, "namespace");
     device->params = xml2list(dev);
+    
+    g_hash_table_insert(device->params, crm_strdup(CRM_META "_" F_STONITH_DEVICE), crm_strdup(device->id));
     device->work = mainloop_add_trigger(G_PRIORITY_HIGH, stonith_device_dispatch, device);
     /* TODO: Hook up priority */
     

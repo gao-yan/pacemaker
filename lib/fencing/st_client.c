@@ -483,6 +483,8 @@ run_stonith_agent(const char *agent, const char *action, const char *victim,
 
     } else {
         /* child */
+        const char *st_dev_id_key = CRM_META "_" F_STONITH_DEVICE;
+        const char *st_dev_id_value = NULL;
 
         close(1);
         if (dup(c_write_fd) < 0)
@@ -498,6 +500,11 @@ run_stonith_agent(const char *agent, const char *action, const char *victim,
         close(c_read_fd);
         close(p_read_fd);
         close(p_write_fd);
+
+        st_dev_id_value = g_hash_table_lookup(device_args, st_dev_id_key);
+        if (st_dev_id_value) {
+            setenv(st_dev_id_key, st_dev_id_value, 1);
+        }
 
         execlp(agent, agent, NULL);
         exit(EXIT_FAILURE);
