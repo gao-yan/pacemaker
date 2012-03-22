@@ -37,6 +37,9 @@
 	    </zeroOrMore>
 	  </element>
 	</optional>
+	<optional>
+	  <ref name="element-tickets"/>
+	</optional>
 	<ref name="element-nodes"/>
 	<element name="resources">
 	  <externalRef href="resources-1.1.rng"/>
@@ -104,6 +107,19 @@
     <optional>
       <attribute name="update-user"><text/></attribute>
     </optional>
+  </define>
+
+  <define name="element-tickets">
+    <element name="tickets">
+      <zeroOrMore>
+	<element name="ticket">
+	  <attribute name="id"><data type="ID"/></attribute>
+	  <optional>
+            <attribute name="standby"><data type="boolean"/></attribute>
+	  </optional>
+	</element>
+      </zeroOrMore>
+    </element>
   </define>
 
   <define name="element-nodes">
