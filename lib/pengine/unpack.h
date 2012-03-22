@@ -22,6 +22,8 @@ extern gboolean unpack_resources(xmlNode * xml_resources, pe_working_set_t * dat
 
 extern gboolean unpack_config(xmlNode * config, pe_working_set_t * data_set);
 
+extern gboolean unpack_tickets(xmlNode * xml_tickets, pe_working_set_t * data_set);
+
 extern gboolean unpack_nodes(xmlNode * xml_nodes, pe_working_set_t * data_set);
 
 extern gboolean unpack_domains(xmlNode * xml_domains, pe_working_set_t * data_set);

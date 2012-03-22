@@ -302,6 +302,9 @@ struct ticket_s {
     char *id;
     gboolean granted;
     time_t last_granted;
+    gboolean standby;
+    GHashTable *config;
+    GHashTable *state;
 };
 
 enum pe_link_state {

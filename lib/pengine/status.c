@@ -55,6 +55,7 @@ gboolean
 cluster_status(pe_working_set_t * data_set)
 {
     xmlNode *config = get_object_root(XML_CIB_TAG_CRMCONFIG, data_set->input);
+    xmlNode *cib_tickets = get_object_root(XML_CIB_TAG_TICKETS, data_set->input);
     xmlNode *cib_nodes = get_object_root(XML_CIB_TAG_NODES, data_set->input);
     xmlNode *cib_resources = get_object_root(XML_CIB_TAG_RESOURCES, data_set->input);
     xmlNode *cib_status = get_object_root(XML_CIB_TAG_STATUS, data_set->input);
@@ -95,6 +96,7 @@ cluster_status(pe_working_set_t * data_set)
         crm_warn("We do not have quorum" " - fencing and resource management disabled");
     }
 
+    unpack_tickets(cib_tickets, data_set);
     unpack_nodes(cib_nodes, data_set);
     unpack_domains(cib_domains, data_set);
     unpack_resources(cib_resources, data_set);
