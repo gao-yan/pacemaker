@@ -658,5 +658,11 @@ do_test template-clone-primitive "Cloned primitive from template"
 do_test template-clone-group     "Cloned group from template"
 
 echo ""
+do_test order-restart-origin            "Mandatory order (restart-origin=true)"
+do_test order-restart-origin-optional   "Optional order (restart-origin=true)"
+do_test order-restart-origin-rsc-sets-1 "Order with resource sets (restart-origin=true, sequential=false)"
+do_test order-restart-origin-rsc-sets-2 "Order with resource sets (restart-origin=true, sequential=true)"
+
+echo ""
 
 test_results
