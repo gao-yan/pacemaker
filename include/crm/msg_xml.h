@@ -290,6 +290,7 @@
 #  define XML_ORDER_ATTR_FIRST_INSTANCE	"first-instance"
 #  define XML_ORDER_ATTR_THEN_INSTANCE	"then-instance"
 #  define XML_ORDER_ATTR_KIND		"kind"
+#  define XML_ORDER_ATTR_RESTART_ORIGIN	"restart-origin"
 
 #  define XML_TICKET_ATTR_TICKET	"ticket"
 #  define XML_TICKET_ATTR_LOSS_POLICY	"loss-policy"

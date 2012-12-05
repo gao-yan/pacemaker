@@ -141,6 +141,9 @@
 	  </attribute>
 	</choice>
       </optional>
+      <optional>
+	<attribute name="restart-origin"><data type="boolean"/></attribute>
+      </optional>
       <choice>
 	<oneOrMore>
 	  <ref name="element-resource-set"/>
