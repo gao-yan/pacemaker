@@ -157,6 +157,7 @@ extern gint sort_rsc_index(gconstpointer a, gconstpointer b);
 
 extern xmlNode *find_rsc_op_entry(resource_t * rsc, const char *key);
 
+extern resource_t *find_resource_container(GListPtr rsc_list, resource_t *rsc);
 extern action_t *custom_action(resource_t * rsc, char *key, const char *task, node_t * on_node,
                                gboolean optional, gboolean foo, pe_working_set_t * data_set);
 

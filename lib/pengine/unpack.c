@@ -1296,6 +1296,20 @@ process_rsc_state(resource_t * rsc, node_t * node,
                 stop_action(rsc, node, FALSE);
             }
             break;
+
+        case action_fail_restart_container:
+            if (rsc->role != RSC_ROLE_STOPPED && rsc->role != RSC_ROLE_UNKNOWN) {
+                resource_t *container = find_resource_container(data_set->resources, rsc);
+
+                set_bit(rsc->flags, pe_rsc_failed);
+                if (container) {
+                    stop_action(container, node, FALSE);
+
+                } else {
+                    stop_action(rsc, node, FALSE);
+                }
+            }
+            break;
     }
 
     if (rsc->role != RSC_ROLE_STOPPED && rsc->role != RSC_ROLE_UNKNOWN) {
@@ -2031,6 +2045,7 @@ unpack_rsc_op(resource_t * rsc, node_t * node, xmlNode * xml_op,
 
                     case action_fail_ignore:
                     case action_fail_recover:
+                    case action_fail_restart_container:
                         *on_fail = action_fail_ignore;
                         rsc->next_role = RSC_ROLE_UNKNOWN;
                 }
@@ -2047,7 +2062,8 @@ unpack_rsc_op(resource_t * rsc, node_t * node, xmlNode * xml_op,
                 add_node_copy(data_set->failed, xml_op);
             }
 
-            if (*on_fail < action->on_fail) {
+            if ((action->on_fail <= action_fail_fence && *on_fail < action->on_fail)
+                 || (action->on_fail == action_fail_restart_container && *on_fail <= action_fail_recover)) {
                 pe_rsc_trace(rsc, "on-fail %s -> %s for %s (%s)",
                              fail2text(*on_fail), fail2text(action->on_fail),
                              action->uuid, task_key ? task_key : id);

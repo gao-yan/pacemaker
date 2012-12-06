@@ -31,7 +31,7 @@ pe_working_set_t *pe_dataset = NULL;
 extern xmlNode *get_object_root(const char *object_type, xmlNode * the_root);
 void print_str_str(gpointer key, gpointer value, gpointer user_data);
 gboolean ghash_free_str_str(gpointer key, gpointer value, gpointer user_data);
-void unpack_operation(action_t * action, xmlNode * xml_obj, pe_working_set_t * data_set);
+void unpack_operation(action_t * action, xmlNode * xml_obj, gboolean within_container, pe_working_set_t * data_set);
 static xmlNode *find_rsc_op_entry_helper(resource_t * rsc, const char *key, gboolean include_disabled);
 
 node_t *
@@ -321,6 +321,18 @@ sort_rsc_priority(gconstpointer a, gconstpointer b)
     return 0;
 }
 
+resource_t *
+find_resource_container(GListPtr rsc_list, resource_t *rsc)
+{
+    resource_t *container = NULL;
+    const char *container_id = g_hash_table_lookup(rsc->meta, XML_RSC_ATTR_CONTAINER);
+
+    if (container_id) {
+        container = pe_find_resource(rsc_list, container_id);
+    }
+    return container;
+}
+
 action_t *
 custom_action(resource_t * rsc, char *key, const char *task,
               node_t * on_node, gboolean optional, gboolean save_action,
@@ -399,9 +411,11 @@ custom_action(resource_t * rsc, char *key, const char *task,
         }
 
         if (rsc != NULL) {
+            gboolean within_container = find_resource_container(data_set->resources, rsc) ? TRUE : FALSE;
+            
             action->op_entry = find_rsc_op_entry_helper(rsc, key, TRUE);
 
-            unpack_operation(action, action->op_entry, data_set);
+            unpack_operation(action, action->op_entry, within_container, data_set);
 
             if (save_action) {
                 rsc->actions = g_list_prepend(rsc->actions, action);
@@ -564,7 +578,7 @@ unpack_operation_on_fail(action_t *action)
 }
 
 void
-unpack_operation(action_t * action, xmlNode * xml_obj, pe_working_set_t * data_set)
+unpack_operation(action_t * action, xmlNode * xml_obj, gboolean within_container, pe_working_set_t * data_set)
 {
     int value_i = 0;
     unsigned long long interval = 0;
@@ -682,6 +696,10 @@ unpack_operation(action_t * action, xmlNode * xml_obj, pe_working_set_t * data_s
         action->on_fail = action_fail_recover;
         value = "restart (and possibly migrate)";
 
+    } else if (safe_str_eq(value, "restart-container")) {
+        action->on_fail = action_fail_restart_container;
+        value = "restart container (and possibly migrate)";
+
     } else {
         pe_err("Resource %s: Unknown failure type (%s)", action->rsc->id, value);
         value = NULL;
@@ -697,6 +715,10 @@ unpack_operation(action_t * action, xmlNode * xml_obj, pe_working_set_t * data_s
             action->on_fail = action_fail_block;
             value = "resource block (default)";
         }
+
+    } else if (value == NULL && within_container) {
+        action->on_fail = action_fail_restart_container;
+        value = "restart container (and possibly migrate) (default)";
 
     } else if (value == NULL) {
         action->on_fail = action_fail_recover;
