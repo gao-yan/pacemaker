@@ -428,6 +428,19 @@ common_unpack(xmlNode * xml_obj, resource_t ** rsc,
     (*rsc)->migration_threshold = INFINITY;
     (*rsc)->failure_timeout = 0;
 
+    value = g_hash_table_lookup((*rsc)->meta, XML_RSC_ATTR_CONTAINER);
+    if (value && safe_str_neq(value, (*rsc)->id)) {
+        GListPtr old_container = g_hash_table_lookup(data_set->containers, value);
+        GListPtr new_container = NULL; 
+
+        if (old_container) {
+            new_container = g_list_copy(old_container);
+        }
+        new_container = g_list_append(new_container, *rsc);
+        g_hash_table_insert(data_set->containers, strdup(value), new_container);
+        pe_rsc_trace((*rsc), "Resource %s's container is %s", (*rsc)->id, value);
+    }
+
     value = g_hash_table_lookup((*rsc)->meta, XML_CIB_ATTR_PRIORITY);
     (*rsc)->priority = crm_parse_int(value, "0");
     (*rsc)->effective_priority = (*rsc)->priority;

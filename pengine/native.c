@@ -1161,6 +1161,7 @@ native_internal_constraints(resource_t * rsc, pe_working_set_t * data_set)
     /* This function is on the critical path and worth optimizing as much as possible */
 
     resource_t *top = uber_parent(rsc);
+    resource_t *container = NULL;
     int type = pe_order_optional | pe_order_implies_then | pe_order_restart;
 
     custom_action_order(rsc, generate_op_key(rsc->id, RSC_STOP, 0), NULL,
@@ -1228,6 +1229,19 @@ native_internal_constraints(resource_t * rsc, pe_working_set_t * data_set)
 
             free(load_stopped_task);
         }
+    }
+
+    container = find_resource_container(data_set->resources, rsc);
+    if (container) {
+        custom_action_order(container, generate_op_key(container->id, RSC_START, 0), NULL,
+                            rsc, generate_op_key(rsc->id, RSC_START, 0), NULL,
+                            pe_order_implies_then | pe_order_runnable_left, data_set);
+
+        custom_action_order(rsc, generate_op_key(rsc->id, RSC_STOP, 0), NULL,
+                            container, generate_op_key(container->id, RSC_STOP, 0), NULL,
+                            pe_order_implies_first, data_set);
+
+        rsc_colocation_new("resource-with-containter", NULL, INFINITY, rsc, container, NULL, NULL, data_set);
     }
 }
 
@@ -2309,6 +2323,14 @@ native_create_probe(resource_t * rsc, node_t * node, action_t * complete,
         }
 
         return any_created;
+
+    } else {
+        resource_t *container = find_resource_container(data_set->resources, rsc);
+
+        if (container) {
+            pe_rsc_trace(rsc, "Skipping %s: it is within container %s", rsc->id, container->id );
+            return FALSE;
+        }
     }
 
     if (is_set(rsc->flags, pe_rsc_orphan)) {

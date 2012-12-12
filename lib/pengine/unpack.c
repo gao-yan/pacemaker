@@ -365,6 +365,14 @@ destroy_template_rsc_set(gpointer data)
     free_xml(rsc_set);
 }
 
+static void
+destroy_container(gpointer data)
+{
+    GListPtr container = data;
+
+    g_list_free(container);
+}
+
 gboolean
 unpack_resources(xmlNode * xml_resources, pe_working_set_t * data_set)
 {
@@ -373,6 +381,9 @@ unpack_resources(xmlNode * xml_resources, pe_working_set_t * data_set)
     data_set->template_rsc_sets =
         g_hash_table_new_full(crm_str_hash, g_str_equal, g_hash_destroy_str,
                               destroy_template_rsc_set);
+
+    data_set->containers = g_hash_table_new_full(crm_str_hash, g_str_equal,
+                                                 g_hash_destroy_str, destroy_container);
 
     for (xml_obj = __xml_first_child(xml_resources); xml_obj != NULL; xml_obj = __xml_next(xml_obj)) {
         resource_t *new_rsc = NULL;
@@ -1255,6 +1266,8 @@ process_rsc_state(resource_t * rsc, node_t * node,
     }
 
     switch (on_fail) {
+        resource_t *container = NULL;
+
         case action_fail_ignore:
             /* nothing to do */
             break;
@@ -1293,6 +1306,18 @@ process_rsc_state(resource_t * rsc, node_t * node,
         case action_fail_recover:
             if (rsc->role != RSC_ROLE_STOPPED && rsc->role != RSC_ROLE_UNKNOWN) {
                 set_bit(rsc->flags, pe_rsc_failed);
+                stop_action(rsc, node, FALSE);
+            }
+            break;
+
+        case action_fail_restart_container:
+            set_bit(rsc->flags, pe_rsc_failed);
+
+            container = find_resource_container(data_set->resources, rsc);
+            if (container) {
+                stop_action(container, node, FALSE);
+
+            } else if (rsc->role != RSC_ROLE_STOPPED && rsc->role != RSC_ROLE_UNKNOWN) {
                 stop_action(rsc, node, FALSE);
             }
             break;
@@ -1639,6 +1664,7 @@ unpack_rsc_op(resource_t * rsc, node_t * node, xmlNode * xml_op,
     gboolean expired = FALSE;
     gboolean is_probe = FALSE;
     gboolean clear_past_failure = FALSE;
+    gboolean stop_failure_ignored = FALSE;
 
     CRM_CHECK(rsc != NULL, return FALSE);
     CRM_CHECK(node != NULL, return FALSE);
@@ -1871,7 +1897,9 @@ unpack_rsc_op(resource_t * rsc, node_t * node, xmlNode * xml_op,
                        id, actual_rc_i, magic, node->details->uname);
             goto done;
 
-        } else if (action->on_fail == action_fail_ignore) {
+        } else if ((action->on_fail == action_fail_ignore)
+                   || (action->on_fail == action_fail_restart_container
+                       && safe_str_eq(task, CRMD_ACTION_STOP))){
             crm_warn("Remapping %s (rc=%d) on %s to DONE: ignore",
                      id, actual_rc_i, node->details->uname);
             task_status_i = PCMK_LRM_OP_DONE;
@@ -1880,6 +1908,14 @@ unpack_rsc_op(resource_t * rsc, node_t * node, xmlNode * xml_op,
             crm_xml_add(xml_op, XML_ATTR_UNAME, node->details->uname);
             if ((node->details->shutdown == FALSE) || (node->details->online == TRUE)) {
                 add_node_copy(data_set->failed, xml_op);
+            }
+
+            if (action->on_fail == action_fail_restart_container && *on_fail <= action_fail_recover) {
+                *on_fail = action->on_fail;
+            }
+
+            if (safe_str_eq(task, CRMD_ACTION_STOP)) {
+                stop_failure_ignored = TRUE;
             }
         }
     }
@@ -2033,6 +2069,16 @@ unpack_rsc_op(resource_t * rsc, node_t * node, xmlNode * xml_op,
                     case action_fail_recover:
                         *on_fail = action_fail_ignore;
                         rsc->next_role = RSC_ROLE_UNKNOWN;
+                        break;
+
+                    case action_fail_restart_container:
+                        if (stop_failure_ignored) {
+                            pe_rsc_trace(rsc, "%s.%s is not cleared by an ignored failed stop",
+                                    rsc->id, fail2text(*on_fail));
+                        } else {
+                            *on_fail = action_fail_ignore;
+                            rsc->next_role = RSC_ROLE_UNKNOWN;
+                        }
                 }
             }
             break;
@@ -2047,7 +2093,9 @@ unpack_rsc_op(resource_t * rsc, node_t * node, xmlNode * xml_op,
                 add_node_copy(data_set->failed, xml_op);
             }
 
-            if (*on_fail < action->on_fail) {
+            if ((action->on_fail <= action_fail_fence && *on_fail < action->on_fail)
+                || (action->on_fail == action_fail_restart_container && *on_fail <= action_fail_recover)
+                || (*on_fail == action_fail_restart_container && action->on_fail >= action_fail_migrate)) {
                 pe_rsc_trace(rsc, "on-fail %s -> %s for %s (%s)",
                              fail2text(*on_fail), fail2text(action->on_fail),
                              action->uuid, task_key ? task_key : id);

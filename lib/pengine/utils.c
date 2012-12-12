@@ -31,7 +31,7 @@ pe_working_set_t *pe_dataset = NULL;
 extern xmlNode *get_object_root(const char *object_type, xmlNode * the_root);
 void print_str_str(gpointer key, gpointer value, gpointer user_data);
 gboolean ghash_free_str_str(gpointer key, gpointer value, gpointer user_data);
-void unpack_operation(action_t * action, xmlNode * xml_obj, pe_working_set_t * data_set);
+void unpack_operation(action_t * action, xmlNode * xml_obj, const char * container_id, pe_working_set_t * data_set);
 static xmlNode *find_rsc_op_entry_helper(resource_t * rsc, const char *key, gboolean include_disabled);
 
 node_t *
@@ -321,6 +321,21 @@ sort_rsc_priority(gconstpointer a, gconstpointer b)
     return 0;
 }
 
+resource_t *
+find_resource_container(GListPtr rsc_list, resource_t *rsc)
+{
+    resource_t *container = NULL;
+    const char *container_id = g_hash_table_lookup(rsc->meta, XML_RSC_ATTR_CONTAINER);
+
+    if (container_id && safe_str_neq(container_id, rsc->id)) {
+        container = pe_find_resource(rsc_list, container_id);
+        if (container == NULL) {
+            pe_err("Resource %s: Unknown resource container (%s)", rsc->id, container_id);
+        } 
+    }
+    return container;
+}
+
 action_t *
 custom_action(resource_t * rsc, char *key, const char *task,
               node_t * on_node, gboolean optional, gboolean save_action,
@@ -399,9 +414,16 @@ custom_action(resource_t * rsc, char *key, const char *task,
         }
 
         if (rsc != NULL) {
+            resource_t *container = find_resource_container(data_set->resources, rsc);
+            const char *container_id = NULL;
+
+            if (container) {
+                container_id = container->id;
+            }
+            
             action->op_entry = find_rsc_op_entry_helper(rsc, key, TRUE);
 
-            unpack_operation(action, action->op_entry, data_set);
+            unpack_operation(action, action->op_entry, container_id, data_set);
 
             if (save_action) {
                 rsc->actions = g_list_prepend(rsc->actions, action);
@@ -564,7 +586,7 @@ unpack_operation_on_fail(action_t *action)
 }
 
 void
-unpack_operation(action_t * action, xmlNode * xml_obj, pe_working_set_t * data_set)
+unpack_operation(action_t * action, xmlNode * xml_obj, const char * container_id, pe_working_set_t * data_set)
 {
     int value_i = 0;
     unsigned long long interval = 0;
@@ -682,13 +704,25 @@ unpack_operation(action_t * action, xmlNode * xml_obj, pe_working_set_t * data_s
         action->on_fail = action_fail_recover;
         value = "restart (and possibly migrate)";
 
+    } else if (safe_str_eq(value, "restart-container")) {
+        if (container_id) {
+            action->on_fail = action_fail_restart_container;
+            value = "restart container (and possibly migrate)";
+        } else {
+            value = NULL;
+        }
+
     } else {
         pe_err("Resource %s: Unknown failure type (%s)", action->rsc->id, value);
         value = NULL;
     }
 
     /* defaults */
-    if (value == NULL && safe_str_eq(action->task, CRMD_ACTION_STOP)) {
+    if (value == NULL && container_id) {
+        action->on_fail = action_fail_restart_container;
+        value = "restart container (and possibly migrate) (default)";
+
+    } else if (value == NULL && safe_str_eq(action->task, CRMD_ACTION_STOP)) {
         if (is_set(data_set->flags, pe_flag_stonith_enabled)) {
             action->on_fail = action_fail_fence;
             value = "resource fence (default)";
@@ -1384,6 +1418,42 @@ get_failcount(node_t * node, resource_t * rsc, int *last_failure, pe_working_set
     }
 
     return search.count;
+}
+
+/* If it's a resource container, get its failcount plus all the failcounts of the resources within it */
+int
+get_failcount_all(node_t * node, resource_t * rsc, int *last_failure, pe_working_set_t * data_set)
+{
+    int failcount_all = 0;
+    GListPtr container = NULL;
+
+    failcount_all = get_failcount(node, rsc, last_failure, data_set);
+
+    container = g_hash_table_lookup(data_set->containers, rsc->id);
+    if (container) {
+        GListPtr gIter = NULL;
+
+        for (gIter = container; gIter != NULL; gIter = gIter->next) {
+            resource_t *child = (resource_t *) gIter->data;
+            int child_last_failure = 0;
+
+            failcount_all += get_failcount(node, child, &child_last_failure, data_set);
+
+            if (last_failure && child_last_failure > *last_failure) {
+                *last_failure = child_last_failure;
+            }
+        }
+
+        if (failcount_all != 0) {
+            char *score = score2char(failcount_all);
+
+            crm_info("Container %s and the resources within it have failed %s times on %s",
+                     rsc->id, score, node->details->uname);
+            free(score);
+        }
+    }
+
+    return failcount_all;
 }
 
 gboolean

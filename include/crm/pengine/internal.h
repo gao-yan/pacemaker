@@ -105,6 +105,8 @@ extern node_t *node_copy(node_t * this_node);
 extern time_t get_timet_now(pe_working_set_t * data_set);
 extern int get_failcount(node_t * node, resource_t * rsc, int *last_failure,
                          pe_working_set_t * data_set);
+extern int get_failcount_all(node_t * node, resource_t * rsc, int *last_failure,
+                         pe_working_set_t * data_set);
 
 /* Binary like operators for lists of nodes */
 extern void node_list_exclude(GHashTable * list, GListPtr list2, gboolean merge_scores);
@@ -157,6 +159,7 @@ extern gint sort_rsc_index(gconstpointer a, gconstpointer b);
 
 extern xmlNode *find_rsc_op_entry(resource_t * rsc, const char *key);
 
+extern resource_t *find_resource_container(GListPtr rsc_list, resource_t *rsc);
 extern action_t *custom_action(resource_t * rsc, char *key, const char *task, node_t * on_node,
                                gboolean optional, gboolean foo, pe_working_set_t * data_set);
 
