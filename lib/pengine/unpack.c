@@ -2168,7 +2168,14 @@ unpack_rsc_op(resource_t * rsc, node_t * node, xmlNode * xml_op,
                         fail_rsc = parent;
                     }
                 }
-                crm_err("Making sure %s doesn't come up again", fail_rsc->id);
+
+                if (action->on_fail == action_fail_stop) {
+                    crm_notice("%s doesn't come up again since on-fail is intended to be \"stop\" for %s op",
+                               fail_rsc->id, task);
+
+                } else {
+                    crm_err("Making sure %s doesn't come up again", fail_rsc->id);
+                }
                 /* make sure it doesnt come up again */
                 g_hash_table_destroy(fail_rsc->allowed_nodes);
                 fail_rsc->allowed_nodes = node_hash_from_list(data_set->nodes);
