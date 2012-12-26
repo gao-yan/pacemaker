@@ -134,6 +134,7 @@ struct node_shared_s {
     enum node_type type;
 
     GHashTable *utilization;
+    gboolean maintenance;
 };
 
 struct node_s {
