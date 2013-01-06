@@ -163,7 +163,7 @@ do_compare_capacity2(gpointer key, gpointer value, gpointer user_data)
 /* rc < 0 if 'node1' has more capacity remaining
  * rc > 0 if 'node1' has less capacity remaining
  */
-static int
+int
 compare_capacity(const node_t * node1, const node_t * node2)
 {
     struct compare_data data;
@@ -268,44 +268,41 @@ sort_node_weight(gconstpointer a, gconstpointer b, gpointer data)
 }
 
 struct calculate_data {
-    node_t *node;
-    gboolean allocate;
+    GHashTable *current_utilization;
+    gboolean plus;
 };
 
 static void
 do_calculate_utilization(gpointer key, gpointer value, gpointer user_data)
 {
-    const char *capacity = NULL;
-    char *remain_capacity = NULL;
+    const char *current = NULL;
+    char *result = NULL;
     struct calculate_data *data = user_data;
 
-    capacity = g_hash_table_lookup(data->node->details->utilization, key);
-    if (capacity) {
-        if (data->allocate) {
-            remain_capacity = crm_itoa(crm_parse_int(capacity, "0") - crm_parse_int(value, "0"));
-        } else {
-            remain_capacity = crm_itoa(crm_parse_int(capacity, "0") + crm_parse_int(value, "0"));
-        }
-        g_hash_table_replace(data->node->details->utilization, strdup(key), remain_capacity);
+    current = g_hash_table_lookup(data->current_utilization, key);
+    if (data->plus) {
+        result = crm_itoa(crm_parse_int(current, "0") + crm_parse_int(value, "0"));
+        g_hash_table_replace(data->current_utilization, strdup(key), result);
+
+    } else if (current) {
+        result = crm_itoa(crm_parse_int(current, "0") - crm_parse_int(value, "0"));
+        g_hash_table_replace(data->current_utilization, strdup(key), result);
     }
 }
 
-/* Specify 'allocate' to TRUE when allocating
- * Otherwise to FALSE when deallocating
+/* Specify 'plus' to FALSE when allocating
+ * Otherwise to TRUE when deallocating
  */
-static void
-calculate_utilization(node_t * node, resource_t * rsc, gboolean allocate)
+void
+calculate_utilization(GHashTable * current_utilization,
+                      GHashTable * utilization, gboolean plus)
 {
     struct calculate_data data;
 
-    data.node = node;
-    data.allocate = allocate;
+    data.current_utilization = current_utilization;
+    data.plus = plus;
 
-    g_hash_table_foreach(rsc->utilization, do_calculate_utilization, &data);
-
-    if (allocate) {
-        dump_rsc_utilization(show_utilization ? 0 : utilization_log_level, __FUNCTION__, rsc, node);
-    }
+    g_hash_table_foreach(utilization, do_calculate_utilization, &data);
 }
 
 void
@@ -321,7 +318,7 @@ native_deallocate(resource_t * rsc)
         old->details->allocated_rsc = g_list_remove(old->details->allocated_rsc, rsc);
         old->details->num_resources--;
         /* old->count--; */
-        calculate_utilization(old, rsc, FALSE);
+        calculate_utilization(old->details->utilization, rsc->utilization, TRUE);
         free(old);
     }
 }
@@ -388,7 +385,9 @@ native_assign_node(resource_t * rsc, GListPtr nodes, node_t * chosen, gboolean f
     chosen->details->allocated_rsc = g_list_prepend(chosen->details->allocated_rsc, rsc);
     chosen->details->num_resources++;
     chosen->count++;
-    calculate_utilization(chosen, rsc, TRUE);
+    calculate_utilization(chosen->details->utilization, rsc->utilization, FALSE);
+    dump_rsc_utilization(show_utilization ? 0 : utilization_log_level, __FUNCTION__, rsc, chosen);
+
     return TRUE;
 }
 

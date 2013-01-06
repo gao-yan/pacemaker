@@ -515,3 +515,62 @@ void
 group_append_meta(resource_t * rsc, xmlNode * xml)
 {
 }
+
+GListPtr
+group_find_colocated_rscs(GListPtr colocated_rscs, resource_t * rsc,
+                          resource_t * from_rsc, resource_t * orig_rsc)
+{
+    group_variant_data_t *group_data = NULL;
+
+    get_group_variant_data(group_data, rsc);
+    if (group_data->colocated ||
+        (rsc->parent &&
+         (rsc->parent->variant == pe_clone || rsc->parent->variant == pe_master))) {
+        GListPtr gIter = rsc->children;
+
+        for (; gIter != NULL; gIter = gIter->next) {
+            resource_t *child_rsc = (resource_t *) gIter->data;
+
+            colocated_rscs = find_colocated_rscs(colocated_rscs, child_rsc, from_rsc, orig_rsc);
+        }
+
+    } else {
+        if (group_data->first_child) {
+            colocated_rscs = find_colocated_rscs(colocated_rscs, group_data->first_child, from_rsc, orig_rsc);
+        }
+    }
+
+    colocated_rscs = find_colocated_rscs(colocated_rscs, rsc, from_rsc, orig_rsc);
+
+    return colocated_rscs;
+}
+
+void
+group_unallocated_utilization_add(GHashTable * all_utilization, resource_t * rsc,
+                                  GListPtr all_rscs)
+{
+    group_variant_data_t *group_data = NULL;
+
+    get_group_variant_data(group_data, rsc);
+    if (group_data->colocated ||
+        (rsc->parent &&
+         (rsc->parent->variant == pe_clone || rsc->parent->variant == pe_master))) {
+        GListPtr gIter = rsc->children;
+
+        for (; gIter != NULL; gIter = gIter->next) {
+            resource_t *child_rsc = (resource_t *) gIter->data;
+
+            if (is_set(child_rsc->flags, pe_rsc_provisional) &&
+                g_list_find(all_rscs, child_rsc) == FALSE) {
+                calculate_utilization(all_utilization, child_rsc->utilization, TRUE);
+            }
+        }
+
+    } else {
+        if (group_data->first_child &&
+            is_set(group_data->first_child->flags, pe_rsc_provisional) &&
+            g_list_find(all_rscs, group_data->first_child) == FALSE) {
+            calculate_utilization(all_utilization, group_data->first_child->utilization, TRUE);
+        }
+    }
+}

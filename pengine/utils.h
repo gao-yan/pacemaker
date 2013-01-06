@@ -55,6 +55,19 @@ extern gboolean can_run_any(GHashTable * nodes);
 extern resource_t *find_compatible_child(resource_t * local_child, resource_t * rsc,
                                          enum rsc_role_e filter, gboolean current);
 
+extern int compare_capacity(const node_t * node1, const node_t * node2);
+extern void calculate_utilization(GHashTable * current_utilization,
+                                  GHashTable * utilization, gboolean plus);
+
+extern GListPtr find_colocated_rscs(GListPtr colocated_rscs, resource_t * rsc, 
+                                    resource_t * from_rsc, resource_t * orig_rsc);
+
+extern GListPtr group_find_colocated_rscs(GListPtr colocated_rscs, resource_t * rsc,
+                                          resource_t * from_rsc, resource_t * orig_rsc);
+
+extern void group_unallocated_utilization_add(GHashTable *all_utilization, resource_t * rsc,
+                                              GListPtr all_rscs);
+
 #  define STONITH_UP "stonith_up"
 #  define STONITH_DONE "stonith_complete"
 #  define ALL_STOPPED "all_stopped"

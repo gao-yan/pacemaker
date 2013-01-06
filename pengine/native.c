@@ -79,7 +79,7 @@ gboolean (*rsc_action_matrix[RSC_ROLE_MAX][RSC_ROLE_MAX])(resource_t*,node_t*,gb
 
 struct capacity_data {
     node_t *node;
-    resource_t *rsc;
+    const char *rsc_id;
     gboolean is_enough;
 };
 
@@ -94,25 +94,117 @@ check_capacity(gpointer key, gpointer value, gpointer user_data)
     remaining = crm_parse_int(g_hash_table_lookup(data->node->details->utilization, key), "0");
 
     if (required > remaining) {
-        pe_rsc_debug(data->rsc,
-                     "Node %s has no enough %s for resource %s: required=%d remaining=%d",
-                     data->node->details->uname, (char *)key, data->rsc->id, required, remaining);
+        crm_debug("Node %s has no enough %s for %s: required=%d remaining=%d",
+                  data->node->details->uname, (char *)key, data->rsc_id, required, remaining);
         data->is_enough = FALSE;
     }
 }
 
 static gboolean
-have_enough_capacity(node_t * node, resource_t * rsc)
+have_enough_capacity(node_t * node, const char * rsc_id, GHashTable * utilization)
 {
     struct capacity_data data;
 
     data.node = node;
-    data.rsc = rsc;
+    data.rsc_id = rsc_id;
     data.is_enough = TRUE;
 
-    g_hash_table_foreach(rsc->utilization, check_capacity, &data);
+    g_hash_table_foreach(utilization, check_capacity, &data);
 
     return data.is_enough;
+}
+
+static GHashTable *
+sum_unallocated_utilization(resource_t * rsc, GListPtr colocated_rscs)
+{
+    GListPtr gIter = NULL;
+    GListPtr all_rscs = NULL;
+    GHashTable *all_utilization = g_hash_table_new_full(crm_str_hash, g_str_equal,
+                                          g_hash_destroy_str, g_hash_destroy_str); 
+
+    all_rscs = g_list_copy(colocated_rscs);
+    if (g_list_find(all_rscs, rsc) == FALSE) {
+        all_rscs = g_list_append(all_rscs, rsc);
+    }
+
+    for (gIter = all_rscs; gIter != NULL; gIter = gIter->next) {
+        resource_t *listed_rsc = (resource_t *) gIter->data;
+
+        if(is_set(listed_rsc->flags, pe_rsc_provisional) == FALSE) {
+            continue;
+        }
+
+        pe_rsc_trace(rsc, "%s: Processing unallocated colocated %s", rsc->id, listed_rsc->id);
+
+        if (listed_rsc->variant == pe_native) {
+            pe_rsc_trace(rsc, "%s: Adding %s as colocated utilization", rsc->id, listed_rsc->id);
+            calculate_utilization(all_utilization, listed_rsc->utilization, TRUE);
+
+        } else if (listed_rsc->variant == pe_group) {
+            pe_rsc_trace(rsc, "%s: Adding %s as colocated utilization", rsc->id, listed_rsc->id);
+            group_unallocated_utilization_add(all_utilization, listed_rsc, all_rscs);
+
+        } else if (listed_rsc->variant == pe_clone ||
+                   listed_rsc->variant == pe_master) {
+            GListPtr gIter1 = NULL;
+            gboolean existing = FALSE;
+            resource_t *first_child = (resource_t *) listed_rsc->children->data;
+
+            /* Check if there's any child already existing in the list */
+            gIter1 = listed_rsc->children;
+            for (; gIter1 != NULL; gIter1 = gIter1->next) {
+                resource_t *child = (resource_t *) gIter1->data;
+
+                if (g_list_find(all_rscs, child)) {
+                    existing = TRUE;
+                    break;
+                }
+            }
+
+            if (existing) {
+                continue;
+
+            } else if (first_child->variant == pe_native) {
+                pe_rsc_trace(rsc, "%s: Adding %s as colocated utilization",
+                             rsc->id, ID(first_child->xml));
+                calculate_utilization(all_utilization, first_child->utilization, TRUE);
+
+            } else if (first_child->variant == pe_group) {
+                GListPtr gIter2 = NULL;
+                resource_t *match_group = NULL;
+
+                /* Check if there's any grandchild already existing in the list */
+                gIter2 = all_rscs;
+                for (; gIter2 != NULL; gIter2 = gIter2->next) {
+                    resource_t *listed_native = (resource_t *) gIter2->data;
+
+                    if (listed_native->variant == pe_native &&
+                        listed_native->parent &&
+                        listed_native->parent->parent == listed_rsc) {
+                        match_group = listed_native->parent;
+                        break;
+                    }
+
+                    if (match_group) {
+                        if(is_set(match_group->flags, pe_rsc_provisional)) {
+                            pe_rsc_trace(rsc, "%s: Adding %s as colocated utilization",
+                                         rsc->id, match_group->id);
+                            group_unallocated_utilization_add(all_utilization, match_group, all_rscs);
+                        }
+
+                    } else {
+                        pe_rsc_trace(rsc, "%s: Adding %s as colocated utilization",
+                                     rsc->id, ID(first_child->xml));
+                        group_unallocated_utilization_add(all_utilization, first_child, all_rscs);
+                    }
+                }
+            }
+        }
+    }
+
+    g_list_free(all_rscs);
+
+    return all_utilization;
 }
 
 static gboolean
@@ -136,15 +228,63 @@ native_choose_node(resource_t * rsc, node_t * prefer, pe_working_set_t * data_se
 
     if (safe_str_neq(data_set->placement_strategy, "default")) {
         GListPtr gIter = NULL;
+        GListPtr colocated_rscs = NULL;
+        gboolean any_capable = FALSE;
 
-        for (gIter = data_set->nodes; gIter != NULL; gIter = gIter->next) {
-            node_t *node = (node_t *) gIter->data;
+        colocated_rscs = find_colocated_rscs(colocated_rscs, rsc, NULL, rsc);
+        if (colocated_rscs) {
+            GHashTable *unallocated_utilization = NULL;
+            char *rscs_id = crm_concat(rsc->id, "and its colocated resources", ' ');
+            node_t *most_capable_node = NULL;
 
-            if (have_enough_capacity(node, rsc) == FALSE) {
-                pe_rsc_debug(rsc,
-                             "Resource %s cannot be allocated to node %s: none of enough capacity",
-                             rsc->id, node->details->uname);
-                resource_location(rsc, node, -INFINITY, "__limit_utilization_", data_set);
+            unallocated_utilization = sum_unallocated_utilization(rsc, colocated_rscs);
+
+            for (gIter = data_set->nodes; gIter != NULL; gIter = gIter->next) {
+                node_t *node = (node_t *) gIter->data;
+
+                if (have_enough_capacity(node, rscs_id, unallocated_utilization)) {
+                    any_capable = TRUE;
+                }
+
+                if (most_capable_node == NULL ||
+                    compare_capacity(node, most_capable_node) < 0) {
+                    /* < 0 means 'node' is more capable */
+                    most_capable_node = node;
+                }
+            }
+
+            if (any_capable) {
+                for (gIter = data_set->nodes; gIter != NULL; gIter = gIter->next) {
+                    node_t *node = (node_t *) gIter->data;
+
+                    if (have_enough_capacity(node, rscs_id, unallocated_utilization) == FALSE) {
+                        pe_rsc_debug(rsc, "Resource %s and its colocated resources cannot be allocated to node %s: no enough capacity",
+                                     rsc->id, node->details->uname);
+                        resource_location(rsc, node, -INFINITY, "__limit_utilization__", data_set);
+                    }
+                }
+
+            } else if (prefer == NULL) {
+                prefer = most_capable_node;
+            }
+
+            if (unallocated_utilization) {
+                g_hash_table_destroy(unallocated_utilization);
+            }
+
+            g_list_free(colocated_rscs);
+            free(rscs_id);
+        }
+
+        if (any_capable == FALSE) {
+            for (gIter = data_set->nodes; gIter != NULL; gIter = gIter->next) {
+                node_t *node = (node_t *) gIter->data;
+
+                if (have_enough_capacity(node, rsc->id, rsc->utilization) == FALSE) {
+                    pe_rsc_debug(rsc, "Resource %s cannot be allocated to node %s: no enough capacity",
+                                 rsc->id, node->details->uname);
+                    resource_location(rsc, node, -INFINITY, "__limit_utilization__", data_set);
+                }
             }
         }
         dump_node_scores(alloc_details, rsc, "Post-utilization", rsc->allowed_nodes);
@@ -1279,14 +1419,14 @@ enum filter_colocation_res {
 
 static enum filter_colocation_res
 filter_colocation_constraint(resource_t * rsc_lh, resource_t * rsc_rh,
-                             rsc_colocation_t * constraint)
+                             rsc_colocation_t * constraint, gboolean preview)
 {
     if (constraint->score == 0) {
         return influence_nothing;
     }
 
     /* rh side must be allocated before we can process constraint */
-    if (is_set(rsc_rh->flags, pe_rsc_provisional)) {
+    if (preview == FALSE && is_set(rsc_rh->flags, pe_rsc_provisional)) {
         return influence_nothing;
     }
 
@@ -1462,7 +1602,7 @@ native_rsc_colocation_rh(resource_t * rsc_lh, resource_t * rsc_rh, rsc_colocatio
 {
     enum filter_colocation_res filter_results;
 
-    filter_results = filter_colocation_constraint(rsc_lh, rsc_rh, constraint);
+    filter_results = filter_colocation_constraint(rsc_lh, rsc_rh, constraint, FALSE);
 
     switch (filter_results) {
         case influence_rsc_priority:
@@ -3172,4 +3312,87 @@ native_append_meta(resource_t * rsc, xmlNode * xml)
         crm_xml_add(xml, name, value);
         free(name);
     }
+}
+
+static GListPtr
+colocated_rscs_append(GListPtr colocated_rscs, resource_t * rsc,
+                      resource_t * from_rsc, resource_t * orig_rsc)
+{
+    if (rsc == NULL) {
+        return colocated_rscs;
+
+    /* Avoid searching loop */
+    } else if (rsc == orig_rsc) {
+        return colocated_rscs;
+
+    } else if (g_list_find(colocated_rscs, rsc)) {
+        return colocated_rscs;
+    }
+
+    crm_trace("%s: %s is supposed to be colocated with %s", orig_rsc->id, rsc->id, orig_rsc->id);
+    colocated_rscs = g_list_append(colocated_rscs, rsc);
+
+    if (rsc->variant == pe_group) {
+        /* Need to use group_variant_data */
+        colocated_rscs = group_find_colocated_rscs(colocated_rscs, rsc, from_rsc, orig_rsc);
+
+    } else {
+        colocated_rscs = find_colocated_rscs(colocated_rscs, rsc, from_rsc, orig_rsc);
+    }
+
+    return colocated_rscs;
+}
+
+GListPtr
+find_colocated_rscs(GListPtr colocated_rscs, resource_t * rsc,
+                    resource_t * from_rsc, resource_t * orig_rsc)
+{
+    GListPtr gIter = NULL;
+
+    for (gIter = rsc->rsc_cons; gIter != NULL; gIter = gIter->next) {
+        rsc_colocation_t *constraint = (rsc_colocation_t *) gIter->data;
+        resource_t *rsc_rh = constraint->rsc_rh;
+
+        /* Avoid going back */
+        if (from_rsc && rsc_rh == from_rsc) {
+            continue;
+        }
+
+        /* Break colocation loop */
+        if (rsc_rh == orig_rsc) {
+            continue;
+        }
+
+        if (constraint->score == INFINITY &&
+            filter_colocation_constraint(rsc, rsc_rh, constraint, TRUE) == influence_rsc_location) {
+            colocated_rscs = colocated_rscs_append(colocated_rscs, rsc_rh, rsc, orig_rsc);
+        }
+    }
+
+    for (gIter = rsc->rsc_cons_lhs; gIter != NULL; gIter = gIter->next) {
+        rsc_colocation_t *constraint = (rsc_colocation_t *) gIter->data;
+        resource_t *rsc_lh = constraint->rsc_lh;
+
+        /* Avoid going back */
+        if (from_rsc && rsc_lh == from_rsc) {
+            continue;
+        }
+
+        /* Break colocation loop */
+        if (rsc_lh == orig_rsc) {
+            continue;
+        }
+
+        if (rsc_lh->variant <= pe_group && rsc->variant > pe_group) {
+            /* We do not know if rsc_lh will be colocated with orig_rsc in this case */
+            continue;
+        }
+
+        if (constraint->score == INFINITY &&
+            filter_colocation_constraint(rsc_lh, rsc, constraint, TRUE) == influence_rsc_location) {
+            colocated_rscs = colocated_rscs_append(colocated_rscs, rsc_lh, rsc, orig_rsc);
+        }
+    }
+
+    return colocated_rscs;
 }
