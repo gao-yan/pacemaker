@@ -1386,6 +1386,9 @@ colocation_match(resource_t * rsc_lh, resource_t * rsc_rh, rsc_colocation_t * co
     GHashTableIter iter;
     node_t *node = NULL;
 
+    gboolean do_count = FALSE;
+    int counter = 0;
+
     if (constraint->node_attribute != NULL) {
         attribute = constraint->node_attribute;
     }
@@ -1393,6 +1396,12 @@ colocation_match(resource_t * rsc_lh, resource_t * rsc_rh, rsc_colocation_t * co
     if (rsc_rh->allocated_to) {
         value = g_hash_table_lookup(rsc_rh->allocated_to->details->attrs, attribute);
         do_check = TRUE;
+
+        if (rsc_rh->allocated_to->details->maintenance == TRUE &&
+            is_set(rsc_rh->flags, pe_rsc_managed) == FALSE &&
+            is_set(rsc_lh->flags, pe_rsc_managed)) {
+            do_count = TRUE;
+        }
 
     } else if (constraint->score < 0) {
         /* nothing to do:
@@ -1411,6 +1420,12 @@ colocation_match(resource_t * rsc_lh, resource_t * rsc_rh, rsc_colocation_t * co
                 pe_rsc_trace(rsc_lh, "%s: %s.%s += %d", constraint->id, rsc_lh->id,
                             node->details->uname, constraint->score);
                 node->weight = merge_weights(constraint->score, node->weight);
+
+            } else if (do_count &&
+                       safe_str_eq(node->details->id, rsc_rh->allocated_to->details->id)) {
+                /* Although rsc_lh is not directly affected by the colocation,
+                 * it cannot run on this node anyway since it's in maintenance mode */
+                counter++;
             }
 
         } else if (do_check == FALSE || constraint->score >= INFINITY) {
@@ -1418,6 +1433,11 @@ colocation_match(resource_t * rsc_lh, resource_t * rsc_rh, rsc_colocation_t * co
                         node->details->uname, constraint->score,
                         do_check ? "failed" : "unallocated");
             node->weight = merge_weights(-constraint->score, node->weight);
+
+            if (constraint->score >= INFINITY && do_count) {
+                /* rsc_lh is affected by the colocation, it cannot run on this node */
+                counter++;
+            }
         }
     }
 
@@ -1426,6 +1446,12 @@ colocation_match(resource_t * rsc_lh, resource_t * rsc_rh, rsc_colocation_t * co
         g_hash_table_destroy(rsc_lh->allowed_nodes);
         rsc_lh->allowed_nodes = work;
         work = NULL;
+
+        if (do_count && counter > 0 &&
+            counter >= g_hash_table_size(rsc_lh->allowed_nodes)) {
+            pe_err("%s cannot run anywhere since it depends on unmanaged %s on maintenance-mode %s",
+                   rsc_lh->id, rsc_rh->id, rsc_rh->allocated_to->details->uname);
+        }
 
     } else {
         char *score = score2char(constraint->score);
