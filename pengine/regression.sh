@@ -488,6 +488,8 @@ echo ""
 do_test reprobe-target_rc "Ensure correct target_rc for reprobe of inactive resources"
 do_test node-maintenance-1 "cl#5128 - Node maintenance"
 do_test node-maintenance-2 "cl#5128 - Node maintenance (coming out of maintenance mode)"
+do_test node-maintenance-3 "cl#5128 - Node maintenance - blocked dependency"
+do_test node-maintenance-4 "cl#5128 - Node maintenance - blocked dependency (coming out of maintenance mode)"
 
 echo ""
 do_test stopped-monitor-00	"Stopped Monitor - initial start"
