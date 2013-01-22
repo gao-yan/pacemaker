@@ -351,10 +351,28 @@ services_os_action_execute(svc_action_t* op, gboolean synchronous)
         switch (errno) { /* see execve(2) */
         case ENOENT:  /* No such file or directory */
         case EISDIR:   /* Is a directory */
+#if SUPPORT_NAGIOS
+            if (safe_str_eq(op->standard, "nagios")) {
+                rc = NAGIOS_NOT_INSTALLED;
+
+            } else {
+                rc = PCMK_OCF_NOT_INSTALLED;
+            }
+#else
             rc = PCMK_OCF_NOT_INSTALLED;
+#endif
             break;
         case EACCES:   /* permission denied (various errors) */
+#if SUPPORT_NAGIOS
+            if (safe_str_eq(op->standard, "nagios")) {
+                rc = NAGIOS_INSUFFICIENT_PRIV;
+
+            } else {
+                rc = PCMK_OCF_INSUFFICIENT_PRIV;
+            }
+#else
             rc = PCMK_OCF_INSUFFICIENT_PRIV;
+#endif
             break;
         default:
             rc = PCMK_OCF_UNKNOWN_ERROR;
@@ -440,7 +458,7 @@ services_os_action_execute(svc_action_t* op, gboolean synchronous)
 }
 
 GList *
-services_os_get_directory_list(const char *root, gboolean files)
+services_os_get_directory_list(const char *root, gboolean files, gboolean executable)
 {
     GList *list = NULL;
     struct dirent **namelist;
@@ -476,7 +494,8 @@ services_os_get_directory_list(const char *root, gboolean files)
                 free(namelist[lpc]);
                 continue;
 
-            } else if ((sb.st_mode & S_IXUSR) == 0
+            } else if (executable
+                       && (sb.st_mode & S_IXUSR) == 0
                        && (sb.st_mode & S_IXGRP) == 0
                        && (sb.st_mode & S_IXOTH) == 0) {
                 free(namelist[lpc]);
@@ -496,13 +515,13 @@ services_os_get_directory_list(const char *root, gboolean files)
 GList *
 resources_os_list_lsb_agents(void)
 {
-    return get_directory_list(LSB_ROOT_DIR, TRUE);
+    return get_directory_list(LSB_ROOT_DIR, TRUE, TRUE);
 }
 
 GList *
 resources_os_list_ocf_providers(void)
 {
-    return get_directory_list(OCF_ROOT_DIR "/resource.d", FALSE);
+    return get_directory_list(OCF_ROOT_DIR "/resource.d", FALSE, TRUE);
 }
 
 GList *
@@ -516,7 +535,7 @@ resources_os_list_ocf_agents(const char *provider)
         char buffer[500];
         snprintf(buffer, sizeof(buffer), "%s/resource.d/%s", OCF_ROOT_DIR,
                  provider);
-        return get_directory_list(buffer, TRUE);
+        return get_directory_list(buffer, TRUE, TRUE);
     }
 
     providers = resources_os_list_ocf_providers();
@@ -530,3 +549,35 @@ resources_os_list_ocf_agents(const char *provider)
     g_list_free_full(providers, free);
     return result;
 }
+
+#if SUPPORT_NAGIOS
+GList *
+resources_os_list_nagios_agents(void)
+{
+    GList *plugin_list = NULL;
+    GList *metadata_list = NULL;
+    GList *result = NULL;
+    GList *gIter1 = NULL;
+    
+    plugin_list = get_directory_list(NAGIOS_PLUGIN_DIR, TRUE, TRUE);
+    metadata_list = get_directory_list(NAGIOS_METADATA_DIR, TRUE, FALSE);
+
+    /* Make sure both the plugin and its metadata exist */
+    for (gIter1 = plugin_list; gIter1 != NULL; gIter1 = gIter1->next) {
+        const char *plugin = gIter1->data;
+        GList *gIter2 = NULL;
+
+        for (gIter2 = metadata_list; gIter2 != NULL; gIter2 = gIter2->next) {
+            const char *metadata = gIter2->data;
+
+            if (safe_str_eq(plugin, metadata)) {
+                result = g_list_append(result, strdup(plugin));
+                break;
+            }
+        }
+    }
+    g_list_free_full(plugin_list, free);
+    g_list_free_full(metadata_list, free);
+    return result;
+}
+#endif
