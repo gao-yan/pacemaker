@@ -232,7 +232,20 @@ main(int argc, char **argv)
 
     } else if (safe_str_neq(type, XML_CIB_TAG_TICKETS)) {
         if(dest_uname == NULL) {
+#if SUPPORT_PLUGIN && !SUPPORT_CMAN
+            if (getuid() != 0) {
+                struct utsname us;
+
+                if (uname(&us) == 0) {
+                    dest_uname = strdup(us.nodename);
+                }
+
+            } else {
+                dest_uname = get_local_node_name();
+            }
+#else
             dest_uname = get_local_node_name();
+#endif
         }
         if (pcmk_ok != query_node_uuid(the_cib, dest_uname, &dest_node)) {
             fprintf(stderr, "Could not map name=%s to a UUID\n", dest_uname);
