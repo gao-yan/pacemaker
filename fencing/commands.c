@@ -731,6 +731,7 @@ dynamic_list_search_cb(GPid pid, int rc, const char *output, gpointer user_data)
         g_list_free_full(dev->targets, free);
         dev->targets = parse_host_list(output);
         dev->targets_age = time(NULL);
+        dev->verified = TRUE;
     }
 
     if (dev->targets) {
