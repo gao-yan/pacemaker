@@ -528,7 +528,7 @@ exec_stonith_action(crm_graph_t * graph, crm_action_t * action)
 }
 
 static void
-print_cluster_status(pe_working_set_t * data_set)
+print_cluster_status(pe_working_set_t * data_set, long options)
 {
     char *online_nodes = NULL;
     char *online_remote_nodes = NULL;
@@ -649,7 +649,7 @@ print_cluster_status(pe_working_set_t * data_set)
             && rsc->role == RSC_ROLE_STOPPED) {
             continue;
         }
-        rsc->fns->print(rsc, NULL, pe_print_printf, stdout);
+        rsc->fns->print(rsc, NULL, pe_print_printf | options, stdout);
     }
     fprintf(stdout, "\n");
 }
@@ -701,7 +701,7 @@ run_simulation(pe_working_set_t * data_set)
         data_set->now = get_date();
 
         cluster_status(data_set);
-        print_cluster_status(data_set);
+        print_cluster_status(data_set, pe_print_no_pending);
     }
 
     if (graph_rc != transition_complete) {
@@ -1516,7 +1516,7 @@ main(int argc, char **argv)
 
     if (quiet == FALSE) {
         quiet_log("\nCurrent cluster status:\n");
-        print_cluster_status(&data_set);
+        print_cluster_status(&data_set, 0);
     }
 
     if (modified) {

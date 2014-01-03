@@ -191,6 +191,15 @@ struct node_s {
 #  define pe_rsc_needs_fencing	 0x20000000ULL
 #  define pe_rsc_needs_unfencing 0x40000000ULL
 
+#  define pe_rsc_stop_pending		0x100000000ULL
+#  define pe_rsc_migrate_to_pending	0x200000000ULL
+#  define pe_rsc_migrate_from_pending	0x400000000ULL
+#  define pe_rsc_promote_pending	0x800000000ULL
+#  define pe_rsc_demote_pending		0x1000000000ULL
+#  define pe_rsc_notify_pending		0x2000000000ULL
+#  define pe_rsc_monitor_pending	0x4000000000ULL
+#  define pe_rsc_probe_pending		0x8000000000ULL
+
 enum pe_graph_flags {
     pe_graph_none = 0x00000,
     pe_graph_updated_first = 0x00001,

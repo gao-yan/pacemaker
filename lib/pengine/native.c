@@ -291,12 +291,49 @@ native_print_attr(gpointer key, gpointer value, gpointer user_data)
     status_print("Option: %s = %s\n", (char *)key, (char *)value);
 }
 
+static const char *
+native_pending_state(resource_t * rsc)
+{
+    const char *rsc_state = NULL;
+
+    if (is_set(rsc->flags, pe_rsc_start_pending)) {
+        rsc_state = "Starting";
+
+    } else if (is_set(rsc->flags, pe_rsc_stop_pending)) {
+        rsc_state = "Stopping";
+
+    } else if (is_set(rsc->flags, pe_rsc_migrate_to_pending)) {
+        rsc_state = "Migrating";
+
+    } else if (is_set(rsc->flags, pe_rsc_migrate_from_pending)) {
+        rsc_state = "Migrated";
+
+    } else if (is_set(rsc->flags, pe_rsc_promote_pending)) {
+        rsc_state = "Promoting";
+
+    } else if (is_set(rsc->flags, pe_rsc_demote_pending)) {
+        rsc_state = "Demoting";
+
+    } else if (is_set(rsc->flags, pe_rsc_notify_pending)) {
+        rsc_state = "Notifying";
+
+    } else if (is_set(rsc->flags, pe_rsc_monitor_pending)) {
+        rsc_state = "Monitoring";
+
+    } else if (is_set(rsc->flags, pe_rsc_probe_pending)) {
+        rsc_state = "Probing";
+    }
+
+    return rsc_state;
+}
+
 static void
 native_print_xml(resource_t * rsc, const char *pre_text, long options, void *print_data)
 {
     enum rsc_role_e role = rsc->role;
     const char *class = crm_element_value(rsc->xml, XML_AGENT_ATTR_CLASS);
     const char *prov = crm_element_value(rsc->xml, XML_AGENT_ATTR_PROVIDER);
+    const char *rsc_state = NULL;
 
     if(role == RSC_ROLE_STARTED && uber_parent(rsc)->variant == pe_master) {
         role = RSC_ROLE_SLAVE;
@@ -308,7 +345,14 @@ native_print_xml(resource_t * rsc, const char *pre_text, long options, void *pri
     status_print("resource_agent=\"%s%s%s:%s\" ",
                  class,
                  prov ? "::" : "", prov ? prov : "", crm_element_value(rsc->xml, XML_ATTR_TYPE));
-    status_print("role=\"%s\" ", role2text(role));
+
+    if ((options & pe_print_no_pending) == 0) {
+        rsc_state = native_pending_state(rsc);
+    }
+    if (rsc_state == NULL) {
+        rsc_state = role2text(role);
+    }
+    status_print("role=\"%s\" ", rsc_state);
     status_print("active=\"%s\" ", rsc->fns->active(rsc, TRUE) ? "true" : "false");
     status_print("orphaned=\"%s\" ", is_set(rsc->flags, pe_rsc_orphan) ? "true" : "false");
     status_print("managed=\"%s\" ", is_set(rsc->flags, pe_rsc_managed) ? "true" : "false");
@@ -423,7 +467,16 @@ native_print(resource_t * rsc, const char *pre_text, long options, void *print_d
     } else if(is_set(rsc->flags, pe_rsc_failed)) {
         offset += snprintf(buffer + offset, LINE_MAX - offset, "FAILED ");
     } else {
-        offset += snprintf(buffer + offset, LINE_MAX - offset, "%s ", role2text(rsc->role));
+        const char *rsc_state = NULL;
+
+        if ((options & pe_print_no_pending) == 0) {
+            rsc_state = native_pending_state(rsc);
+        }
+        if (rsc_state == NULL) {
+            rsc_state = role2text(rsc->role);
+        }
+
+        offset += snprintf(buffer + offset, LINE_MAX - offset, "%s ", rsc_state);
     }
 
     if(node) {
