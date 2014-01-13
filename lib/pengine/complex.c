@@ -720,5 +720,6 @@ common_free(resource_t * rsc)
     free(rsc->clone_name);
     free(rsc->allocated_to);
     free(rsc->variant_opaque);
+    free(rsc->pending_task);
     free(rsc);
 }

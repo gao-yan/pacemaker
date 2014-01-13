@@ -96,6 +96,7 @@ gboolean print_last_change = TRUE;
 gboolean print_tickets = FALSE;
 gboolean watch_fencing = FALSE;
 gboolean hide_headers = FALSE;
+gboolean print_pending = FALSE;
 
 /* FIXME allow, detect, and correctly interpret glob pattern or regex? */
 const char *print_neg_location_prefix;
@@ -340,6 +341,8 @@ static struct crm_option long_options[] = {
     {"neg-locations",  2, 0, 'L', "Display negative location constraints [optionally filtered by id prefix]"},
     {"show-node-attributes", 0, 0, 'A', "Display node attributes" },
     {"hide-headers",   0, 0, 'D', "\tHide all headers" },
+    {"pending",        0, 0, 'j', "\t\tDisplay pending state if 'record-pending' is enabled" },
+
 
     {"-spacer-",	1, 0, '-', "\nAdditional Options:"},
     {"interval",       1, 0, 'i', "\tUpdate frequency in seconds" },
@@ -449,6 +452,9 @@ detect_user_input(GIOChannel *channel, GIOCondition condition, gpointer unused)
             case 'D':
                 hide_headers = ! hide_headers;
                 break;
+            case 'j':
+                print_pending = ! print_pending;
+                break;
             case '?':
                 config_mode = TRUE;
                 break;
@@ -472,6 +478,7 @@ detect_user_input(GIOChannel *channel, GIOCondition condition, gpointer unused)
         print_as("%c A: \t%s\n", print_nodes_attr ? '*': ' ', get_option_desc('A'));
         print_as("%c L: \t%s\n", print_neg_location_prefix ? '*': ' ', get_option_desc('L'));
         print_as("%c D: \t%s\n", hide_headers ? '*': ' ', get_option_desc('D'));
+        print_as("%c j: \t%s\n", print_pending ? '*': ' ', get_option_desc('j'));
         print_as("\n");
         print_as("Toggle fields via field letter, type any other key to return");
     }
@@ -549,6 +556,9 @@ main(int argc, char **argv)
                 break;
             case 'L':
                 print_neg_location_prefix = optarg ?: "";
+                break;
+            case 'j':
+                print_pending = TRUE;
                 break;
             case 'D':
                 hide_headers = TRUE;
@@ -1159,6 +1169,10 @@ print_status(pe_working_set_t * data_set)
         print_opts = pe_print_printf;
     }
 
+    if (print_pending) {
+        print_opts |= pe_print_pending;
+    }
+
     updates++;
     dc = data_set->dc_node;
 
@@ -1463,8 +1477,13 @@ print_xml_status(pe_working_set_t * data_set)
     xmlNode *stack = NULL;
     xmlNode *quorum_node = NULL;
     const char *quorum_votes = "unknown";
+    int print_opts = pe_print_xml;
 
     dc = data_set->dc_node;
+
+    if (print_pending) {
+        print_opts |= pe_print_pending;
+    }
 
     fprintf(stream, "<?xml version=\"1.0\"?>\n");
     fprintf(stream, "<crm_mon version=\"%s\">\n", VERSION);
@@ -1567,7 +1586,7 @@ print_xml_status(pe_working_set_t * data_set)
             for (lpc2 = node->details->running_rsc; lpc2 != NULL; lpc2 = lpc2->next) {
                 resource_t *rsc = (resource_t *) lpc2->data;
 
-                rsc->fns->print(rsc, "            ", pe_print_xml | pe_print_rsconly, stream);
+                rsc->fns->print(rsc, "            ", print_opts | pe_print_rsconly, stream);
             }
             fprintf(stream, "        </node>\n");
         } else {
@@ -1589,11 +1608,11 @@ print_xml_status(pe_working_set_t * data_set)
 
             } else if (group_by_node == FALSE) {
                 if (partially_active || inactive_resources) {
-                    rsc->fns->print(rsc, "        ", pe_print_xml, stream);
+                    rsc->fns->print(rsc, "        ", print_opts, stream);
                 }
 
             } else if (is_active == FALSE && inactive_resources) {
-                rsc->fns->print(rsc, "        ", pe_print_xml, stream);
+                rsc->fns->print(rsc, "        ", print_opts, stream);
             }
         }
         fprintf(stream, "    </resources>\n");
@@ -1614,6 +1633,11 @@ print_html_status(pe_working_set_t * data_set, const char *filename, gboolean we
     node_t *dc = NULL;
     static int updates = 0;
     char *filename_tmp = NULL;
+    int print_opts = pe_print_html;
+
+    if (print_pending) {
+        print_opts |= pe_print_pending;
+    }
 
     if (web_cgi) {
         stream = stdout;
@@ -1725,7 +1749,7 @@ print_html_status(pe_working_set_t * data_set, const char *filename, gboolean we
                 resource_t *rsc = (resource_t *) lpc2->data;
 
                 fprintf(stream, "<li>");
-                rsc->fns->print(rsc, NULL, pe_print_html | pe_print_rsconly, stream);
+                rsc->fns->print(rsc, NULL, print_opts | pe_print_rsconly, stream);
                 fprintf(stream, "</li>\n");
             }
             fprintf(stream, "</ul>\n");
@@ -1752,11 +1776,11 @@ print_html_status(pe_working_set_t * data_set, const char *filename, gboolean we
 
             } else if (group_by_node == FALSE) {
                 if (partially_active || inactive_resources) {
-                    rsc->fns->print(rsc, NULL, pe_print_html, stream);
+                    rsc->fns->print(rsc, NULL, print_opts, stream);
                 }
 
             } else if (is_active == FALSE && inactive_resources) {
-                rsc->fns->print(rsc, NULL, pe_print_html, stream);
+                rsc->fns->print(rsc, NULL, print_opts, stream);
             }
         }
     }
