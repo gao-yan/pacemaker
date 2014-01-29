@@ -17,21 +17,11 @@
       </optional>
 	<zeroOrMore>
 	  <element name="nvpair">
-	    <choice>
-	      <group>
-	        <attribute name="id-ref"><data type="IDREF"/></attribute>
-	        <optional>
-	          <attribute name="name"><text/></attribute>
-	        </optional>
-	      </group>
-	      <group>
-	        <attribute name="id"><data type="ID"/></attribute>
-	        <attribute name="name"><text/></attribute>
-	        <optional>
-	          <attribute name="value"><text/></attribute>
-	        </optional>
-	      </group>
-	    </choice>
+	    <attribute name="id"><data type="ID"/></attribute>
+	    <attribute name="name"><text/></attribute>
+	    <optional>
+	      <attribute name="value"><text/></attribute>
+	    </optional>
 	  </element>
 	</zeroOrMore>
       <optional>

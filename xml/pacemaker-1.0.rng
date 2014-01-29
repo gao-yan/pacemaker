@@ -15,7 +15,7 @@
 	<element name="crm_config">
 	  <zeroOrMore>
 	    <element name="cluster_property_set">
-	      <externalRef href="nvset.rng"/>
+	      <externalRef href="nvset-1.0.rng"/>
 	    </element>
 	  </zeroOrMore>
 	</element>
@@ -23,7 +23,7 @@
 	  <element name="rsc_defaults">
 	    <zeroOrMore>
 	      <element name="meta_attributes">
-		<externalRef href="nvset.rng"/>
+		<externalRef href="nvset-1.0.rng"/>
 	      </element>
 	    </zeroOrMore>
 	  </element>
@@ -32,7 +32,7 @@
 	  <element name="op_defaults">
 	    <zeroOrMore>
 	      <element name="meta_attributes">
-		<externalRef href="nvset.rng"/>
+		<externalRef href="nvset-1.0.rng"/>
 	      </element>
 	    </zeroOrMore>
 	  </element>
@@ -94,7 +94,7 @@
 	  </optional>
 	  <zeroOrMore>
 	    <element name="instance_attributes">
-	      <externalRef href="nvset.rng"/>
+	      <externalRef href="nvset-1.0.rng"/>
 	    </element>
 	  </zeroOrMore>
 	</element>
