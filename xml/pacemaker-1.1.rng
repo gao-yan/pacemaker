@@ -65,6 +65,9 @@
 	<optional>
 	  <externalRef href="fencing.rng"/>
 	</optional>
+	<optional>
+	  <externalRef href="tags.rng"/>
+	</optional>
       </interleave>
     </element>
     <element name="status">

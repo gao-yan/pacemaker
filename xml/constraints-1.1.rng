@@ -22,7 +22,7 @@
       <choice>
 	<group>
 	  <choice>
-	    <attribute name="rsc"><data type="IDREF"/></attribute>
+	    <attribute name="rsc"><text/></attribute>
 	    <attribute name="rsc-pattern"><text/></attribute>
 	  </choice>
 	  <optional>
@@ -82,7 +82,7 @@
 	  </optional>
 	  <oneOrMore>
 	    <element name="resource_ref">
-	      <attribute name="id"><data type="IDREF"/></attribute>
+	      <attribute name="id"><text/></attribute>
 	    </element>
 	  </oneOrMore>
 	</group>
@@ -108,8 +108,8 @@
 	  <ref name="element-resource-set"/>
 	</oneOrMore>
 	<group>
-	  <attribute name="rsc"><data type="IDREF"/></attribute>
-	  <attribute name="with-rsc"><data type="IDREF"/></attribute>
+	  <attribute name="rsc"><text/></attribute>
+	  <attribute name="with-rsc"><text/></attribute>
 	  <optional>
 	    <attribute name="node-attribute"><text/></attribute>
 	  </optional>
@@ -156,8 +156,8 @@
 	  <ref name="element-resource-set"/>
 	</oneOrMore>
 	<group>
-	  <attribute name="first"><data type="IDREF"/></attribute>
-	  <attribute name="then"><data type="IDREF"/></attribute>
+	  <attribute name="first"><text/></attribute>
+	  <attribute name="then"><text/></attribute>
 	  <optional>
 	    <attribute name="first-action">
 	      <ref name="attribute-actions"/>
@@ -187,7 +187,7 @@
 	  <ref name="element-resource-set"/>
 	</oneOrMore>
 	<group>
-	  <attribute name="rsc"><data type="IDREF"/></attribute>
+	  <attribute name="rsc"><text/></attribute>
 	  <optional>
 	    <attribute name="rsc-role">
 	      <ref name="attribute-roles"/>
