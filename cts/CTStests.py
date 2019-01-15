@@ -2684,13 +2684,21 @@ class RemoteDriver(CTSTest):
                 break
 
     def start_pcmk_remote(self, node):
+        # stop possibly running cluster services before starting pacemaker_remote
+        if not self.stop(node):
+            self.fail("Failed to shutdown cluster node %s" % node)
+            return False
+
         for i in range(10):
             rc = self.rsh(node, "service pacemaker_remote start")
             if rc != 0:
                 time.sleep(6)
             else:
                 self.pcmk_started = 1
-                break
+                return True
+
+        self.fail("Failed to start pacemaker_remote on node %s" % node)
+        return False
 
     def freeze_pcmk_remote(self, node):
         """ Simulate a Pacemaker Remote daemon failure. """
@@ -2709,14 +2717,7 @@ class RemoteDriver(CTSTest):
         self.rsh(node, "crm_resource -D -r %s -t primitive" % (self.remote_rsc))
         self.rsh(node, "crm_resource -D -r %s -t primitive" % (self.remote_node))
 
-        if not self.stop(node):
-            self.fail("Failed to shutdown cluster node %s" % node)
-            return
-
-        self.start_pcmk_remote(node)
-
-        if self.pcmk_started == 0:
-            self.fail("Failed to start pacemaker_remote on node %s" % node)
+        if not self.start_pcmk_remote(node):
             return
 
         # Convert node to baremetal now that it has shutdown the cluster stack
@@ -2791,6 +2792,12 @@ class RemoteDriver(CTSTest):
         watch = self.create_watch(watchpats, 120)
         watch.setwatch()
 
+        # Since this node is now being reused as a remote node, after being fenced,
+        # , pacemaker will start if it's enabled at boot.
+        # We'll need to stop pacemaker then start pacemaker_remote.
+        if self.Env["at-boot"] == 1:
+            self.CM.ShouldBeStatus[node] = "up"
+
         # freeze the pcmk remote daemon. this will result in fencing
         self.debug("Force stopped active remote node")
         self.freeze_pcmk_remote(node)
@@ -2814,9 +2821,7 @@ class RemoteDriver(CTSTest):
             pats.append(self.templates["Pat:RscRemoteOpOK"] % ("start", self.remote_rsc, self.remote_node))
 
         # start the remote node again watch it integrate back into cluster.
-        self.start_pcmk_remote(node)
-        if self.pcmk_started == 0:
-            self.fail("Failed to start pacemaker_remote on node %s" % node)
+        if not self.start_pcmk_remote(node):
             return
 
         self.debug("Waiting for remote node to rejoin cluster after being fenced.")
