@@ -148,3 +148,9 @@ update_attrd_clear_failures(const char *host, const char *rsc, const char *op,
              rsc, (is_remote_node? "Pacemaker Remote" : "cluster"), host);
     update_attrd_helper(host, rsc, op, interval, NULL, is_remote_node, 0);
 }
+
+void
+refresh_attrd(void)
+{
+    update_attrd_helper(NULL, NULL, NULL, NULL, NULL, FALSE, 'R');
+}
