@@ -213,6 +213,7 @@ peer_update_callback(enum crm_status_type type, crm_node_t * node, const void *d
                     crm_info("New peer %s we want to sync fence history with",
                              node->uname);
                     te_trigger_stonith_history_sync();
+                    refresh_attrd();
                 }
             }
             break;
