@@ -44,6 +44,7 @@
 #include <crm/msg_xml.h>
 
 quorum_handle_t pcmk_quorum_handle = 0;
+mainloop_io_t *pcmk_quorum_gsource = NULL;
 
 gboolean(*quorum_app_callback) (unsigned long long seq, gboolean quorate) = NULL;
 
@@ -157,6 +158,8 @@ terminate_cs_connection(crm_cluster_t *cluster)
     if (pcmk_quorum_handle) {
         quorum_finalize(pcmk_quorum_handle);
         pcmk_quorum_handle = 0;
+        mainloop_del_fd(pcmk_quorum_gsource);
+        pcmk_quorum_gsource = NULL;
     }
     crm_notice("Disconnected from Corosync");
 }
@@ -298,7 +301,7 @@ cluster_connect_quorum(gboolean(*dispatch) (unsigned long long, gboolean),
         goto bail;
     }
 
-    mainloop_add_fd("quorum", G_PRIORITY_HIGH, fd, dispatch, &quorum_fd_callbacks);
+    pcmk_quorum_gsource = mainloop_add_fd("quorum", G_PRIORITY_HIGH, fd, dispatch, &quorum_fd_callbacks);
 
     corosync_initialize_nodelist(NULL, FALSE, NULL);
 

@@ -51,6 +51,8 @@ cluster_disconnect_cpg(crm_cluster_t *cluster)
         crm_trace("Disconnecting CPG");
         cpg_leave(cluster->cpg_handle, &cluster->group);
         cpg_finalize(cluster->cpg_handle);
+        mainloop_del_fd(cluster->cpg_gsource);
+        cluster->cpg_gsource = NULL;
         cluster->cpg_handle = 0;
 
     } else {
@@ -461,7 +463,7 @@ cluster_connect_cpg(crm_cluster_t *cluster)
 
     pcmk_cpg_handle = handle;
     cluster->cpg_handle = handle;
-    mainloop_add_fd("corosync-cpg", G_PRIORITY_MEDIUM, fd, cluster, &cpg_fd_callbacks);
+    cluster->cpg_gsource = mainloop_add_fd("corosync-cpg", G_PRIORITY_MEDIUM, fd, cluster, &cpg_fd_callbacks);
 
   bail:
     if (rc != CS_OK) {

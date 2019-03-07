@@ -19,6 +19,8 @@ extern "C" {
 #    include <corosync/cpg.h>
 #  endif
 
+#  include <crm/common/mainloop.h>
+
 extern gboolean crm_have_quorum;
 extern GHashTable *crm_peer_cache;
 extern GHashTable *crm_remote_peer_cache;
@@ -79,6 +81,7 @@ typedef struct crm_cluster_s {
     struct cpg_name group;
     cpg_callbacks_t cpg;
     cpg_handle_t cpg_handle;
+    mainloop_io_t *cpg_gsource;
 #  endif
 
 } crm_cluster_t;
