@@ -1465,11 +1465,35 @@ __xml_find_path(xmlNode *top, const char *key, int target_position)
     return target;
 }
 
+static gint
+sort_change_by_position(gconstpointer a, gconstpointer b)
+{
+    xmlNode *change_a = (xmlNode *) a;
+    xmlNode *change_b = (xmlNode *) b;
+    int position_a = -1;
+    int position_b = -1;
+
+    crm_element_value_int(change_a, XML_DIFF_POSITION, &position_a);
+    crm_element_value_int(change_b, XML_DIFF_POSITION, &position_b);
+
+    if (position_a < position_b) {
+        return -1;
+
+    } else if (position_a > position_b) {
+        return 1;
+    }
+
+    return 0;
+}
+
 static int
 xml_apply_patchset_v2(xmlNode *xml, xmlNode *patchset)
 {
     int rc = pcmk_ok;
     xmlNode *change = NULL;
+    GListPtr move_list = NULL;
+    GListPtr gIter = NULL;
+
     for (change = __xml_first_child(patchset); change != NULL; change = __xml_next(change)) {
         xmlNode *match = NULL;
         const char *op = crm_element_value(change, XML_DIFF_OP);
@@ -1525,45 +1549,12 @@ xml_apply_patchset_v2(xmlNode *xml, xmlNode *patchset)
             crm_node_created(child);
 
         } else if(strcmp(op, "move") == 0) {
-            int position = 0;
+            move_list = g_list_append(move_list, change);
 
-            crm_element_value_int(change, XML_DIFF_POSITION, &position);
-            if(position != __xml_offset(match)) {
-                xmlNode *match_child = NULL;
-                int p = position;
+            CRM_ASSERT(match->parent != NULL && match->parent->last != NULL);
 
-                if(p > __xml_offset(match)) {
-                    p++; /* Skip ourselves */
-                }
-
-                CRM_ASSERT(match->parent != NULL);
-                match_child = match->parent->children;
-
-                while(match_child && p != __xml_offset(match_child)) {
-                    match_child = match_child->next;
-                }
-
-                crm_trace("Moving %s to position %d (was %d, prev %p, %s %p)",
-                         match->name, position, __xml_offset(match), match->prev,
-                         match_child?"next":"last", match_child?match_child:match->parent->last);
-
-                if(match_child) {
-                    xmlAddPrevSibling(match_child, match);
-
-                } else {
-                    CRM_ASSERT(match->parent->last != NULL);
-                    xmlAddNextSibling(match->parent->last, match);
-                }
-
-            } else {
-                crm_trace("%s is already in position %d", match->name, position);
-            }
-
-            if(position != __xml_offset(match)) {
-                crm_err("Moved %s.%s to position %d instead of %d (%p)",
-                        match->name, ID(match), __xml_offset(match), position, match->prev);
-                rc = -pcmk_err_diff_failed;
-            }
+            // Temporarily put it at the end
+            xmlAddNextSibling(match->parent->last, match);
 
         } else if(strcmp(op, "delete") == 0) {
             free_xml(match);
@@ -1594,6 +1585,71 @@ xml_apply_patchset_v2(xmlNode *xml, xmlNode *patchset)
             crm_err("Unknown operation: %s", op);
         }
     }
+
+    move_list = g_list_sort(move_list, sort_change_by_position);
+
+    for (gIter = move_list; gIter; gIter = gIter->next) {
+        xmlNode *match = NULL;
+        const char *op;
+        const char *xpath;
+        int position = -1;
+
+        change = gIter->data;
+
+        op = crm_element_value(change, XML_DIFF_OP);
+        xpath = crm_element_value(change, XML_DIFF_PATH);
+
+        crm_trace("Continue processing %s %s", change->name, op);
+        if (op == NULL) {
+            continue;
+        }
+
+        if (strcmp(op, "move") != 0) {
+            continue;
+        }
+        match = __xml_find_path(xml, xpath, position);
+        crm_trace("Performing %s on %s with %p", op, xpath, match);
+
+        crm_element_value_int(change, XML_DIFF_POSITION, &position);
+        if(position != __xml_offset(match)) {
+            xmlNode *match_child = NULL;
+            int p = position;
+
+            if(p > __xml_offset(match)) {
+                p++; /* Skip ourselves */
+            }
+
+            CRM_ASSERT(match->parent != NULL);
+            match_child = match->parent->children;
+
+            while(match_child && p != __xml_offset(match_child)) {
+                match_child = match_child->next;
+            }
+
+            crm_trace("Moving %s to position %d (was %d, prev %p, %s %p)",
+                     match->name, position, __xml_offset(match), match->prev,
+                     match_child?"next":"last", match_child?match_child:match->parent->last);
+
+            if(match_child) {
+                xmlAddPrevSibling(match_child, match);
+
+            } else {
+                CRM_ASSERT(match->parent->last != NULL);
+                xmlAddNextSibling(match->parent->last, match);
+            }
+
+        } else {
+            crm_trace("%s is already in position %d", match->name, position);
+        }
+
+        if(position != __xml_offset(match)) {
+            crm_err("Moved %s.%s to position %d instead of %d (%p)",
+                    match->name, ID(match), __xml_offset(match), position, match->prev);
+            rc = -pcmk_err_diff_failed;
+        }
+    }
+
+    g_list_free(move_list);
     return rc;
 }
 
