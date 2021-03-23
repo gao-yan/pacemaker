@@ -174,7 +174,21 @@ calculate_main_digest(op_digest_cache_t *data, pe_resource_t *rsc,
         g_hash_table_foreach(overrides, hash2field, data->params_all);
     }
     g_hash_table_foreach(params, hash2field, data->params_all);
-    g_hash_table_foreach(action->extra, hash2field, data->params_all);
+
+    /* It's arguable that changes of op-specific parameters for non-recurring
+     * operations should be taken into account when considering if resources
+     * should be reloaded/restarted.
+     *
+     * The fact in case of resulting into reload is, reload operations don't
+     * really take any start-specific parameters, but a successful reload
+     * gets updated as a start in cib resource history based on
+     * pcmk__create_history_xml(), which of course will still keep the
+     * same digests.
+     */
+    if (!pcmk__str_eq(task, CRMD_ACTION_START, pcmk__str_casei)) {
+        g_hash_table_foreach(action->extra, hash2field, data->params_all);
+    }
+
     g_hash_table_foreach(action->meta, hash2metafield, data->params_all);
 
 #if ENABLE_VERSIONED_ATTRS
