@@ -140,6 +140,8 @@ calculate_main_digest(op_digest_cache_t *data, pe_resource_t *rsc,
                       GHashTable *overrides, pe_working_set_t *data_set)
 {
     pe_action_t *action = NULL;
+    /* Changes that can potentially be handled by a reload */
+    const char *digest_restart = NULL;
 
     data->params_all = create_xml_node(NULL, XML_TAG_PARAMS);
 
@@ -174,7 +176,30 @@ calculate_main_digest(op_digest_cache_t *data, pe_resource_t *rsc,
         g_hash_table_foreach(overrides, hash2field, data->params_all);
     }
     g_hash_table_foreach(params, hash2field, data->params_all);
-    g_hash_table_foreach(action->extra, hash2field, data->params_all);
+
+    /* It's arguable that changes of extra parameters configured for start
+     * operations should be taken into account when considering if resources
+     * should be reloaded/restarted.
+     *
+     * A fact is, reload operations don't really take any extra parameters of
+     * start operations. If changes of extra parameters of start resulted in to
+     * reload and reload returned success, reload would get updated as a start
+     * in cib resource history based on pcmk__create_history_xml(), which would
+     * still get the old digests though. From then on, any further irrelevant
+     * changes would keep triggering reload of the resource.
+     *
+     * We resolve it here by calculating digests without considering extra
+     * parameters for start operations for the case that reload is supported.
+     */
+    if (xml_op) {
+        digest_restart = crm_element_value(xml_op, XML_LRM_ATTR_RESTART_DIGEST);
+    }
+
+    if (digest_restart == NULL
+        || !pcmk__str_eq(task, CRMD_ACTION_START, pcmk__str_casei)) {
+        g_hash_table_foreach(action->extra, hash2field, data->params_all);
+    }
+
     g_hash_table_foreach(action->meta, hash2metafield, data->params_all);
 
 #if ENABLE_VERSIONED_ATTRS
