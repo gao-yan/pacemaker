@@ -242,12 +242,13 @@ calculate_secure_digest(op_digest_cache_t *data, pe_resource_t *rsc,
         pcmk__xe_remove_matching_attrs(data->params_secure, attr_in_string,
                                        (void *) secure_list);
     }
-    if (pcmk_is_set(pcmk_get_ra_caps(class),
+    if (compare_version(op_version, "3.16.0") < 0
+        && pcmk_is_set(pcmk_get_ra_caps(class),
                     pcmk_ra_cap_fence_params)) {
         /* For stonith resources, Pacemaker adds special parameters,
-         * but these are not listed in fence agent meta-data, so the
-         * controller will not hash them. That means we have to filter
-         * them out before calculating our hash for comparison.
+         * but these are not listed in fence agent meta-data, so with older
+         * versions of DC, the controller will not hash them. That means we have
+         * to filter them out before calculating our hash for comparison.
          */
         pcmk__xe_remove_matching_attrs(data->params_secure, is_fence_param,
                                        NULL);
@@ -255,14 +256,14 @@ calculate_secure_digest(op_digest_cache_t *data, pe_resource_t *rsc,
     pcmk__filter_op_for_digest(data->params_secure);
 
     /* CRM_meta_timeout *should* be part of a digest for recurring operations.
-     * However, currently the controller does not add timeout to secure digests,
-     * because it only includes parameters declared by the resource agent.
+     * However, with older versions of DC, the controller does not add timeout
+     * to secure digests, because it only includes parameters declared by the
+     * resource agent.
      * Remove any timeout that made it this far, to match.
-     *
-     * @TODO Update the controller to add the timeout (which will require
-     * bumping the feature set and checking that here).
      */
-    xml_remove_prop(data->params_secure, CRM_META "_" XML_ATTR_TIMEOUT);
+    if (compare_version(op_version, "3.16.0") < 0) {
+        xml_remove_prop(data->params_secure, CRM_META "_" XML_ATTR_TIMEOUT);
+    }
 
     data->digest_secure_calc = calculate_operation_digest(data->params_secure,
                                                           op_version);
