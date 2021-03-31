@@ -221,12 +221,9 @@ calculate_secure_digest(op_digest_cache_t *data, pe_resource_t *rsc,
         secure_list = crm_element_value(xml_op, XML_LRM_ATTR_OP_SECURE);
     }
 
-    data->params_secure = create_xml_node(NULL, XML_TAG_PARAMS);
-    if (overrides != NULL) {
-        g_hash_table_foreach(overrides, hash2field, data->params_secure);
-    }
+    // Start with a copy of all parameters
+    data->params_secure = copy_xml(data->params_all);
 
-    g_hash_table_foreach(params, hash2field, data->params_secure);
     if (secure_list != NULL) {
         pcmk__xe_remove_matching_attrs(data->params_secure, attr_in_string,
                                        (void *) secure_list);
