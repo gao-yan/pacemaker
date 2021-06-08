@@ -183,6 +183,9 @@ remote_node_up(const char *node_name)
     CRM_CHECK(node_name != NULL, return);
     crm_info("Announcing pacemaker_remote node %s", node_name);
 
+    /* Clear any old attributes of the remote node */
+    update_attrd_remote_node_removed(node_name, NULL);
+
     /* Clear node's entire state (resource history and transient attributes)
      * other than shutdown locks. The transient attributes should and normally
      * will be cleared when the node leaves, but since remote node state has a
@@ -195,6 +198,8 @@ remote_node_up(const char *node_name)
     controld_delete_node_state(node_name, section, call_opt);
 
     /* Clear node's probed attribute */
+    /* Still, attrd relies on this to create a membership cache entry for it as a
+     * remote node. */
     update_attrd(node_name, CRM_OP_PROBED, NULL, NULL, TRUE);
 
     /* Ensure node is in the remote peer cache with member status */
