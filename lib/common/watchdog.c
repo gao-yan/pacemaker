@@ -254,9 +254,22 @@ pcmk__get_sbd_sync_resource_startup(void)
     static bool checked_sync_resource_startup = false;
 
     if (!checked_sync_resource_startup) {
+        const char *pcmk_integration = getenv("SBD_PACEMAKER");
         const char *sync_env = getenv("SBD_SYNC_RESOURCE_STARTUP");
 
-        if (sync_env == NULL) {
+        /* SBD's pacemaker integration can be disabled first of all. In that
+         * case, startup syncing cannot be actually enabled anyways. A fact is,
+         * SBD's pacemaker integration can be disabled/enabled either with
+         * SBD_PACEMAKER environment variable or "-PP"/"-P" option. Pacemaker
+         * can only check SBD_PACEMAKER and rely on either SBD or users to
+         * ensure the sanity and consistency between the environment variable and
+         * the command-line option.
+         */
+        if (pcmk_integration != NULL
+            && !crm_is_true(pcmk_integration)) {
+            sync_resource_startup = 0;
+
+        } else if (sync_env == NULL) {
             crm_trace("Defaulting to %sstart-up synchronization with sbd",
                       (PCMK__SBD_SYNC_DEFAULT? "" : "no "));
 
