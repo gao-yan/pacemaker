@@ -7701,7 +7701,7 @@ Diff: +++ 0.1.0 (null)
   <change operation="delete" path="/cib/status/node_state[@id='httpd-bundle-1']"/>
   <change operation="modify" path="/cib">
     <change-list>
-      <change-attr name="crm_feature_set" operation="set" value="3.17.4"/>
+      <change-attr name="crm_feature_set" operation="set" value="3.18.0"/>
       <change-attr name="num_updates" operation="set" value="0"/>
       <change-attr name="admin_epoch" operation="set" value="0"/>
       <change-attr name="cib-last-written" operation="unset"/>
