@@ -1344,12 +1344,32 @@ determine_online_status_no_fencing(pe_working_set_t *data_set,
     const char *is_peer = crm_element_value(node_state, XML_NODE_IS_PEER);
     const char *in_cluster = crm_element_value(node_state, XML_NODE_IN_CLUSTER);
     const char *exp_state = crm_element_value(node_state, XML_NODE_EXPECTED);
+    int member = false;
+    bool crmd_online = false;
+    long long when_member = 0;
+    long long when_online = 0;
 
-    if (!crm_is_true(in_cluster)) {
+    if (crm_str_to_boolean(in_cluster, &member) != 1) {
+        pcmk__scan_ll(in_cluster, &when_member, 0LL);
+        member = (when_member > 0) ? true : false;
+    }
+
+    if (pcmk__str_eq(is_peer, ONLINESTATUS, pcmk__str_casei)) {
+        crmd_online = true;
+
+    } else if (pcmk__str_eq(is_peer, OFFLINESTATUS, pcmk__str_casei)) {
+        crmd_online = false;
+
+    } else {
+        pcmk__scan_ll(is_peer, &when_online, 0LL);
+        crmd_online = (when_online > 0) ? true : false;
+    }
+
+    if (!member) {
         crm_trace("Node is down: in_cluster=%s",
                   pcmk__s(in_cluster, "<null>"));
 
-    } else if (pcmk__str_eq(is_peer, ONLINESTATUS, pcmk__str_casei)) {
+    } else if (crmd_online) {
         if (pcmk__str_eq(join, CRMD_JOINSTATE_MEMBER, pcmk__str_casei)) {
             online = TRUE;
         } else {
@@ -1384,6 +1404,9 @@ determine_online_status_fencing(pe_working_set_t *data_set,
     const char *in_cluster = crm_element_value(node_state, XML_NODE_IN_CLUSTER);
     const char *exp_state = crm_element_value(node_state, XML_NODE_EXPECTED);
     const char *terminate = pe_node_attribute_raw(this_node, "terminate");
+    int member = false;
+    long long when_member = 0;
+    long long when_online = 0;
 
 /*
   - XML_NODE_IN_CLUSTER    ::= true|false
@@ -1409,8 +1432,24 @@ determine_online_status_fencing(pe_working_set_t *data_set,
               pcmk__s(is_peer, "<null>"), pcmk__s(join, "<null>"),
               pcmk__s(exp_state, "<null>"), do_terminate);
 
-    online = crm_is_true(in_cluster);
-    crmd_online = pcmk__str_eq(is_peer, ONLINESTATUS, pcmk__str_casei);
+    if (crm_str_to_boolean(in_cluster, &member) != 1) {
+        pcmk__scan_ll(in_cluster, &when_member, 0LL);
+        member = (when_member > 0) ? true : false;
+    }
+
+    online = member;
+
+    if (pcmk__str_eq(is_peer, ONLINESTATUS, pcmk__str_casei)) {
+        crmd_online = true;
+
+    } else if (pcmk__str_eq(is_peer, OFFLINESTATUS, pcmk__str_casei)) {
+        crmd_online = false;
+
+    } else {
+        pcmk__scan_ll(is_peer, &when_online, 0LL);
+        crmd_online = (when_online > 0) ? true : false;
+    }
+
     if (exp_state == NULL) {
         exp_state = CRMD_JOINSTATE_DOWN;
     }
@@ -1430,7 +1469,7 @@ determine_online_status_fencing(pe_working_set_t *data_set,
 
     } else if (do_terminate == FALSE && pcmk__str_eq(exp_state, CRMD_JOINSTATE_DOWN, pcmk__str_casei)) {
 
-        if (crm_is_true(in_cluster) || crmd_online) {
+        if (member || crmd_online) {
             crm_info("- %s is not ready to run resources",
                      pe__node_name(this_node));
             this_node->details->standby = TRUE;
@@ -1442,11 +1481,11 @@ determine_online_status_fencing(pe_working_set_t *data_set,
         }
 
     } else if (do_terminate && pcmk__str_eq(join, CRMD_JOINSTATE_DOWN, pcmk__str_casei)
-               && crm_is_true(in_cluster) == FALSE && !crmd_online) {
+               && !member && !crmd_online) {
         crm_info("%s was just shot", pe__node_name(this_node));
         online = FALSE;
 
-    } else if (crm_is_true(in_cluster) == FALSE) {
+    } else if (!member) {
         // Consider `priority-fencing-delay` for lost nodes
         pe_fence_node(data_set, this_node, "peer is no longer part of the cluster", TRUE);
 
