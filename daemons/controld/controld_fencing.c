@@ -1006,9 +1006,10 @@ controld_verify_stonith_watchdog_timeout(const char *value)
     const char *our_nodename = controld_globals.our_nodename;
     gboolean rv = TRUE;
 
-    if (stonith_api && (stonith_api->state != stonith_disconnected) &&
-        stonith__watchdog_fencing_enabled_for_node_api(stonith_api,
-                                                       our_nodename)) {
+    if (value == 0
+        || (stonith_api && (stonith_api->state != stonith_disconnected) &&
+            stonith__watchdog_fencing_enabled_for_node_api(stonith_api,
+                                                       our_nodename))) {
         rv = pcmk__valid_sbd_timeout(value);
     }
     return rv;
