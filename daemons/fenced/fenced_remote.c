@@ -1662,8 +1662,10 @@ get_op_total_timeout(const remote_fencing_op_t *op,
 
     } else if (chosen_peer) {
         total_timeout = get_peer_timeout(op, chosen_peer);
+
     } else {
-        total_timeout = op->base_timeout;
+        total_timeout = valid_fencing_timeout(op->base_timeout, "global", op,
+                                              NULL);
     }
 
     if (total_timeout <= 0) {
