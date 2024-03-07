@@ -1651,8 +1651,15 @@ get_op_total_timeout(const remote_fencing_op_t *op,
 
     } else if (chosen_peer) {
         total_timeout = get_peer_timeout(op, chosen_peer);
+
     } else {
-        total_timeout = op->base_timeout;
+        if (is_watchdog_fencing(op, NULL)) {
+            total_timeout = QB_MAX(op->base_timeout,
+                                   stonith_watchdog_timeout_ms / 1000);
+
+        } else {
+            total_timeout = op->base_timeout;
+        }
     }
 
     if (total_timeout <= 0) {
