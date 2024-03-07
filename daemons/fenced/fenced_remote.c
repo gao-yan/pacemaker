@@ -1489,28 +1489,36 @@ get_device_timeout(const remote_fencing_op_t *op,
                    const peer_device_info_t *peer, const char *device,
                    bool with_delay)
 {
+    long long timeout = op->base_timeout;
     device_properties_t *props;
-    int delay = 0;
+
+    if (is_watchdog_fencing(op, device)) {
+        timeout = QB_MAX(op->base_timeout,
+                         stonith_watchdog_timeout_ms / 1000);
+    }
 
     if (!peer || !device) {
-        return op->base_timeout;
+        goto done;
     }
 
     props = g_hash_table_lookup(peer->devices, device);
     if (!props) {
-        return op->base_timeout;
+        goto done;
+    }
+
+    if (props->custom_action_timeout[op->phase]) {
+        timeout = props->custom_action_timeout[op->phase];
     }
 
     // op->client_delay < 0 means disable any static/random fencing delays
     if (with_delay && (op->client_delay >= 0)) {
         // delay_base is eventually limited by delay_max
-        delay = (props->delay_max[op->phase] > 0 ?
-                 props->delay_max[op->phase] : props->delay_base[op->phase]);
+        timeout += (props->delay_max[op->phase] > 0 ?
+                    props->delay_max[op->phase] : props->delay_base[op->phase]);
     }
 
-    return (props->custom_action_timeout[op->phase]?
-            props->custom_action_timeout[op->phase] : op->base_timeout)
-           + delay;
+done:
+    return (int) QB_MIN(timeout, INT_MAX);
 }
 
 struct timeout_data {
