@@ -1507,7 +1507,13 @@ get_device_timeout(const remote_fencing_op_t *op,
     }
 
     if (props->custom_action_timeout[op->phase]) {
-        timeout = props->custom_action_timeout[op->phase];
+        if (is_watchdog_fencing(op, device)) {
+            timeout = QB_MAX(props->custom_action_timeout[op->phase],
+                             stonith_watchdog_timeout_ms / 1000);
+
+        } else {
+            timeout = props->custom_action_timeout[op->phase];
+        }
     }
 
     // op->client_delay < 0 means disable any static/random fencing delays
