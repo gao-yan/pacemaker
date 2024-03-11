@@ -233,7 +233,9 @@ get_action_timeout(const stonith_device_t *device, const char *action,
         snprintf(buffer, sizeof(buffer), "pcmk_%s_timeout", action);
         value = g_hash_table_lookup(device->params, buffer);
         if (value) {
-            return atoi(value);
+            guint timeout_ms = 0U;
+            pcmk_parse_interval_spec(value, &timeout_ms);
+            return (int) (timeout_ms / 1000);
         }
     }
     return default_timeout;
