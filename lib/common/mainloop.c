@@ -939,6 +939,36 @@ mainloop_add_ipc_client(const char *name, int priority, size_t max_size,
     return source;
 }
 
+mainloop_io_t *
+mainloop_add_ipc_client_attempts(const char *name, int priority,
+                                 size_t max_size, void *userdata,
+                                 struct ipc_client_callbacks *callbacks,
+                                 int attempts)
+{
+    mainloop_io_t *source = NULL;
+
+    crm_trace("Attempting connection to %s IPC (up to %d time%s)",
+              name, attempts, pcmk__plural_s(attempts));
+
+    for (int remaining = attempts - 1; remaining >= 0; --remaining) {
+        source = mainloop_add_ipc_client(name, priority, max_size, userdata,
+                                         callbacks);
+
+        if ((source != NULL)
+            || (remaining == 0)
+            || ((errno != EAGAIN) && (errno != EALREADY))) {
+            break;
+        }
+
+        // Retry after soft error (interrupted by signal, etc.)
+        pcmk__sleep_ms((attempts - remaining) * 500);
+        crm_debug("Re-attempting connection to %s IPC (%d attempt%s remaining)",
+                  name, remaining, pcmk__plural_s(remaining));
+    }
+
+    return source;
+}
+
 void
 mainloop_del_ipc_client(mainloop_io_t * client)
 {

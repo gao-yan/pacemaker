@@ -64,6 +64,10 @@ int pcmk__add_mainloop_ipc(crm_ipc_t *ipc, int priority, void *userdata,
                            const struct ipc_client_callbacks *callbacks,
                            mainloop_io_t **source);
 guint pcmk__mainloop_timer_get_period(const mainloop_timer_t *timer);
+mainloop_io_t * mainloop_add_ipc_client_attempts(const char *name, int priority,
+                                                 size_t max_size, void *userdata,
+                                                 struct ipc_client_callbacks *callbacks,
+                                                 int attempts);
 
 
 /* internal node-related XML utilities (from nodes.c) */
