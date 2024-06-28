@@ -314,8 +314,9 @@ cib_native_signon_raw(cib_t *cib, const char *name, enum cib_conn_type type,
 
     } else {
         native->source =
-            mainloop_add_ipc_client(channel, G_PRIORITY_HIGH, 512 * 1024 /* 512k */ , cib,
-                                    &cib_callbacks);
+            mainloop_add_ipc_client_attempts(channel, G_PRIORITY_HIGH,
+                                             512 * 1024 /* 512k */ , cib,
+                                             &cib_callbacks, 5);
         native->ipc = mainloop_get_ipc_client(native->source);
     }
 
