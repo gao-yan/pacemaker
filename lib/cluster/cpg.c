@@ -298,7 +298,11 @@ ais_dest(const pcmk__cpg_host_t *host)
 static inline const char *
 msg_type2text(enum pcmk_ipc_server type)
 {
-    const char *name = pcmk__server_message_type(type);
+    const char *name = NULL;
+
+    if (type != pcmk_ipc_unknown) {
+        name = pcmk__server_message_type(type);
+    }
 
     return pcmk__s(name, "unknown");
 }
@@ -805,7 +809,10 @@ pcmk__cpg_connect(pcmk_cluster_t *cluster)
 
     cpg_evicted = false;
 
-    cpg_group_name = pcmk__server_message_type(cluster->priv->server);
+    if (cluster->priv->server != pcmk_ipc_unknown) {
+        cpg_group_name = pcmk__server_message_type(cluster->priv->server);
+    }
+
     if (cpg_group_name == NULL) {
         /* The name will already be non-NULL for Pacemaker servers. If a
          * command-line tool or external caller connects to the cluster,
