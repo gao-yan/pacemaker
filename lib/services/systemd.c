@@ -370,6 +370,11 @@ set_result_from_method_error(svc_action_t *op, const DBusError *error)
         services__format_result(op, PCMK_OCF_NOT_INSTALLED,
                                PCMK_EXEC_NOT_INSTALLED,
                                "systemd unit %s not found", op->agent);
+
+    } else if (pcmk__str_any_of(op->action, PCMK_ACTION_MONITOR,
+                                PCMK_ACTION_STATUS, NULL)
+               && strstr(error->name, "org.freedesktop.DBus.Error.NoReply")) {
+        services__set_result(op, PCMK_OCF_UNKNOWN, PCMK_EXEC_PENDING, NULL);
     }
 
     crm_info("DBus request for %s of systemd unit %s%s%s failed: %s",
@@ -453,6 +458,7 @@ loadunit_completed(DBusPendingCall *pending, void *user_data)
 
     // Grab the reply
     if (pending != NULL) {
+        crm_info("loadunit_completed=%d", dbus_pending_call_get_completed(pending));
         reply = dbus_pending_call_steal_reply(pending);
     }
 

@@ -371,6 +371,8 @@ pcmk_dbus_find_error(const DBusPendingCall *pending, DBusMessage *reply,
                 break;
             case DBUS_MESSAGE_TYPE_ERROR:
                 dbus_set_error_from_message(&error, reply);
+                crm_trace("EEEEEEEEEEEEEEEEEEEEE '%s' (%s)",
+                          error.name, error.message);
                 break;
             default:
                 dbus_set_error(&error, ERR_INVALID_REPLY_TYPE,
