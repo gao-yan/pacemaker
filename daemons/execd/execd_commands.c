@@ -934,6 +934,14 @@ action_complete(svc_action_t * action)
         /* For monitors, excluding follow-up monitors,                                  */
         /* if the pending state persists from the first notification until its timeout, */
         /* it will be treated as a timeout.                                             */
+        crm_notice("FFFFFFFFFF: %s %s (rc=%d, last_notify_op_status=%d)",
+                   cmd->rsc_id, cmd->action, cmd->result.exit_status, cmd->last_notify_op_status);
+
+        if (cmd->result.execution_status == PCMK_EXEC_PENDING) {
+            //goagain = true;
+            //cmd->real_action = cmd->action;
+            //cmd->action = pcmk__str_copy(PCMK_ACTION_MONITOR);
+        }
 
         if ((cmd->result.execution_status == PCMK_EXEC_PENDING) &&
             (cmd->last_notify_op_status == PCMK_EXEC_PENDING)) {

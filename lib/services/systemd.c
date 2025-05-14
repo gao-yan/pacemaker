@@ -375,6 +375,9 @@ set_result_from_method_error(svc_action_t *op, const DBusError *error)
                                 PCMK_ACTION_STATUS, NULL)
                && strstr(error->name, "org.freedesktop.DBus.Error.NoReply")) {
         services__set_result(op, PCMK_OCF_UNKNOWN, PCMK_EXEC_PENDING, NULL);
+        crm_info("AAAAAAAA: %s%s%s: rc=%d status=%d",
+                 op->action, ((op->rsc == NULL)? "" : " for resource "), pcmk__s(op->rsc, ""),
+                 op->rc, op->status);
     }
 
     crm_info("DBus request for %s of systemd unit %s%s%s failed: %s",
@@ -431,9 +434,13 @@ execute_after_loadunit(DBusMessage *reply, svc_action_t *op)
             invoke_unit_by_path(op, path);
 
         } else if (!(op->synchronous)) {
-            services__format_result(op, PCMK_OCF_UNKNOWN_ERROR, PCMK_EXEC_ERROR,
-                                    "No DBus object found for systemd unit %s",
-                                    op->agent);
+            if (!pcmk__str_any_of(op->action, PCMK_ACTION_MONITOR,
+                                  PCMK_ACTION_STATUS, NULL)
+                || op->status != PCMK_EXEC_PENDING) {
+                services__format_result(op, PCMK_OCF_UNKNOWN_ERROR, PCMK_EXEC_ERROR,
+                                        "No DBus object found for systemd unit %s",
+                                        op->agent);
+            }
             services__finalize_async_op(op);
         }
     }
