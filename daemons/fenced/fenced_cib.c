@@ -153,6 +153,9 @@ update_fencing_watchdog_timeout_ms(xmlNode *cib)
     const char *value = NULL;
     int rc = pcmk_rc_ok;
 
+    // Reset the value in case the cluster option is unset
+    fencing_watchdog_timeout_ms = 0;
+
     // @TODO An XPath search can't handle multiple instances or rules
     stonith_watchdog_xml = pcmk__xpath_find_one(cib->doc,
                                                 XPATH_WATCHDOG_TIMEOUT,
