@@ -797,7 +797,7 @@ find_and_track_existing_processes(void)
                                           &wait_in_progress);
 
             if (rc == pcmk_rc_ok) {
-                break;
+                continue;
             } else if (rc != EAGAIN) {
                 return rc;
             }
