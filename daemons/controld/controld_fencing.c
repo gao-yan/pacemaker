@@ -995,6 +995,16 @@ void
 controld_validate_fencing_watchdog_timeout(const char *value)
 {
     const char *our_nodename = controld_globals.cluster->priv->node_name;
+    long long timeout_ms = 0;
+
+    if (value == NULL) {
+        return;
+    }
+
+    if ((pcmk__parse_ms(value, &timeout_ms) == pcmk_rc_ok)
+        && (timeout_ms == 0)) {
+        return;
+    }
 
     // Validate only if the timeout will be used
     if ((fencer_api != NULL) && (fencer_api->state != stonith_disconnected)
