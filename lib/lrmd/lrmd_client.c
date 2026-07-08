@@ -1034,11 +1034,10 @@ lrmd__validate_remote_settings(lrmd_t *lrmd, GHashTable *hash)
     pcmk__xe_set(data, PCMK__XA_LRMD_ORIGIN, __func__);
 
     value = pcmk__cluster_option(hash, PCMK_OPT_FENCING_WATCHDOG_TIMEOUT);
-    if ((value) &&
-        (pcmk__parse_ms(value, &timeout_ms) == pcmk_rc_ok) &&
-        (timeout_ms != 0) &&
+    timeout_ms = pcmk__parse_fencing_watchdog_timeout(value);
+    if ((timeout_ms != 0) &&
         (stonith__watchdog_fencing_enabled_for_node(native->remote_nodename))) {
-       pcmk__xe_set(data, PCMK__XA_LRMD_WATCHDOG, value);
+        pcmk__xe_set_ll(data, PCMK__XA_LRMD_WATCHDOG, timeout_ms);
     }
 
     rc = lrmd_send_command(lrmd, LRMD_OP_CHECK, data, NULL, 0, 0,

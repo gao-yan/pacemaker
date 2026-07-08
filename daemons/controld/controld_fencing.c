@@ -997,12 +997,8 @@ controld_validate_fencing_watchdog_timeout(const char *value)
     const char *our_nodename = controld_globals.cluster->priv->node_name;
     long long timeout_ms = 0;
 
-    if (value == NULL) {
-        return;
-    }
-
-    if ((pcmk__parse_ms(value, &timeout_ms) == pcmk_rc_ok)
-        && (timeout_ms == 0)) {
+    timeout_ms = pcmk__parse_fencing_watchdog_timeout(value);
+    if (timeout_ms == 0) {
         return;
     }
 
@@ -1011,7 +1007,7 @@ controld_validate_fencing_watchdog_timeout(const char *value)
         && stonith__watchdog_fencing_enabled_for_node_api(fencer_api,
                                                           our_nodename)) {
 
-        pcmk__valid_fencing_watchdog_timeout(value);
+        pcmk__valid_fencing_watchdog_timeout(timeout_ms);
     }
 }
 

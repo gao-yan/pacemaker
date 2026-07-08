@@ -271,8 +271,8 @@ pcmk__auto_fencing_watchdog_timeout(void)
     return (long) QB_MIN(st_timeout, LONG_MAX);
 }
 
-bool
-pcmk__valid_fencing_watchdog_timeout(const char *value)
+long long
+pcmk__parse_fencing_watchdog_timeout(const char *value)
 {
     /* @COMPAT At a compatibility break, accept either negative values or a
      * specific string like "auto" (but not both) to mean "auto-calculate the
@@ -293,15 +293,19 @@ pcmk__valid_fencing_watchdog_timeout(const char *value)
                     st_timeout, value);
     }
 
+    return st_timeout;
+}
+
+bool
+pcmk__valid_fencing_watchdog_timeout(long long st_timeout)
+{
     if (st_timeout == 0) {
         pcmk__debug("Watchdog may be enabled but "
-                    PCMK_OPT_FENCING_WATCHDOG_TIMEOUT " is disabled (%s)",
-                    pcmk__s(value, "default"));
+                    PCMK_OPT_FENCING_WATCHDOG_TIMEOUT " is disabled (0ms)");
 
     } else if (pcmk__locate_sbd() == 0) {
         pcmk__emerg("Shutting down: " PCMK_OPT_FENCING_WATCHDOG_TIMEOUT
-                    " configured (%s) but SBD not active",
-                    pcmk__s(value, "auto"));
+                    " configured (%lldms) but SBD not active", st_timeout);
         crm_exit(CRM_EX_FATAL);
         return false;
 
@@ -313,14 +317,13 @@ pcmk__valid_fencing_watchdog_timeout(const char *value)
              * parsable, positive, and less than the SBD_WATCHDOG_TIMEOUT
              */
             pcmk__emerg("Shutting down: " PCMK_OPT_FENCING_WATCHDOG_TIMEOUT
-                        " (%s) too short (must be >%ldms)",
-                        value, sbd_timeout);
+                        " (%lldms) too short (must be >%ldms)",
+                        st_timeout, sbd_timeout);
             crm_exit(CRM_EX_FATAL);
             return false;
         }
         pcmk__info("Watchdog configured with " PCMK_OPT_FENCING_WATCHDOG_TIMEOUT
-                   " %s and SBD timeout %ldms",
-                   value, sbd_timeout);
+                   " %lldms and SBD timeout %ldms", st_timeout, sbd_timeout);
     }
     return true;
 }
